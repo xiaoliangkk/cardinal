@@ -60,7 +60,7 @@ struct TuiApp {
     runtime_status: RuntimeStatus,
     last_ready: bool,
     tick: u64,
-    /// Debounce for scheduling searches while the user is typing. 
+    /// Debounce for scheduling searches while the user is typing.
     /// If `Some`, a search is scheduled to run at the specified `Instant`.
     pending_search_at: Option<Instant>,
 }
@@ -376,6 +376,7 @@ impl TuiApp {
     fn render(&self, frame: &mut Frame) {
         let layout = layout_for_area(frame.area());
 
+        // 1. query input box
         let query_border = if self.focus == Focus::Query {
             Style::default().fg(Color::Cyan)
         } else {
@@ -395,6 +396,7 @@ impl TuiApp {
             ));
         }
 
+        // 2. result table
         if self.runtime_status.lifecycle == AppLifecycleStatus::Ready {
             let rows: Vec<Row> = self
                 .results
@@ -459,6 +461,7 @@ impl TuiApp {
             frame.render_widget(self.indexing_panel(), layout.results);
         }
 
+        // 3. status bar
         let status =
             Paragraph::new(self.status_bar_line()).block(Block::default().borders(Borders::TOP));
         frame.render_widget(status, layout.status);
@@ -731,7 +734,7 @@ fn run_app(terminal: &mut DefaultTerminal, runtime: &AppRuntime, confirm_quit: b
                         _ => {}
                     }
                 }
-                Event::Mouse(mouse) => {
+                Event::Mouse(mouse) if app.focus == Focus::Results => {
                     app.pending_ctrl_w = false;
                     if app.details_popup_open || app.quit_confirm_open {
                         continue;
@@ -887,6 +890,7 @@ fn centered_rect(horizontal_percent: u16, vertical_percent: u16, area: Rect) -> 
     horizontal[1]
 }
 
+/// Layout: 3 vertical sections - query, results, status
 fn layout_for_area(area: Rect) -> AppLayout {
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -896,13 +900,9 @@ fn layout_for_area(area: Rect) -> AppLayout {
             Constraint::Length(2),
         ])
         .split(area);
-    let body = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(100)])
-        .split(vertical[1]);
     AppLayout {
         query: vertical[0],
-        results: body[0],
+        results: vertical[1],
         status: vertical[2],
     }
 }
