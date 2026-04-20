@@ -1,12 +1,16 @@
 import { useCallback } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { Menu } from '@tauri-apps/api/menu';
 import type { MenuItemOptions } from '@tauri-apps/api/menu';
 import { useTranslation } from 'react-i18next';
 import type { ShortcutId, ShortcutMap } from '../shortcuts';
-import { openResultPath } from '../utils/openResultPath';
-import { splitPath } from '../utils/path';
+import {
+  copyFilesToClipboard,
+  copyFilenamesToClipboard,
+  copyPathsToClipboard,
+  openPaths,
+  revealPathsInFinder,
+} from '../utils/fileActions';
 import { formatShortcutForDisplay } from '../utils/shortcutCapture';
 
 type UseContextMenuResult = {
@@ -27,12 +31,6 @@ export function useContextMenu(
   shortcuts: ShortcutMap,
 ): UseContextMenuResult {
   const { t } = useTranslation();
-  const writeClipboard = useCallback((text: string) => {
-    if (!navigator?.clipboard?.writeText) {
-      return;
-    }
-    void navigator.clipboard.writeText(text);
-  }, []);
 
   const buildFileMenuItems = useCallback(
     (targetPathsInput: string[]): MenuItemOptions[] => {
@@ -54,7 +52,7 @@ export function useContextMenu(
           text: t('contextMenu.openItem'),
           shortcutId: 'openResult',
           action: () => {
-            targetPaths.forEach((itemPath) => openResultPath(itemPath));
+            openPaths(targetPaths);
           },
         },
         {
@@ -62,9 +60,7 @@ export function useContextMenu(
           text: t('contextMenu.revealInFinder'),
           shortcutId: 'revealInFinder',
           action: () => {
-            targetPaths.forEach((itemPath) => {
-              void invoke('open_in_finder', { path: itemPath });
-            });
+            revealPathsInFinder(targetPaths);
           },
         },
         {
@@ -72,10 +68,7 @@ export function useContextMenu(
           text: copyFilenameLabel,
           shortcutId: 'copyFilenames',
           action: () => {
-            const filenames = targetPaths
-              .map((itemPath) => splitPath(itemPath).name || itemPath)
-              .join(' ');
-            writeClipboard(filenames);
+            copyFilenamesToClipboard(targetPaths);
           },
         },
         {
@@ -83,7 +76,7 @@ export function useContextMenu(
           text: copyPathLabel,
           shortcutId: 'copyPaths',
           action: () => {
-            writeClipboard(targetPaths.join('\n'));
+            copyPathsToClipboard(targetPaths);
           },
         },
         {
@@ -91,9 +84,7 @@ export function useContextMenu(
           text: copyLabel,
           shortcutId: 'copyFiles',
           action: () => {
-            void invoke('copy_files_to_clipboard', { paths: targetPaths }).catch((error) => {
-              console.error('Failed to copy files to clipboard', error);
-            });
+            copyFilesToClipboard(targetPaths);
           },
         },
       ];
@@ -116,7 +107,7 @@ export function useContextMenu(
         action: definition.action,
       }));
     },
-    [onQuickLookRequest, shortcuts, t, writeClipboard],
+    [onQuickLookRequest, shortcuts, t],
   );
 
   const buildHeaderMenuItems = useCallback((): MenuItemOptions[] => {

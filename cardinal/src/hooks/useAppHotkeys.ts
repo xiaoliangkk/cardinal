@@ -7,8 +7,13 @@ import {
   subscribeQuickLookKeydown,
   type QuickLookKeydownPayload,
 } from '../runtime/tauriEventRuntime';
-import { openResultPath } from '../utils/openResultPath';
-import { splitPath } from '../utils/path';
+import {
+  copyFilesToClipboard,
+  copyFilenamesToClipboard,
+  copyPathsToClipboard,
+  openPaths,
+  revealPathsInFinder,
+} from '../utils/fileActions';
 import { openPreferences } from '../utils/openPreferences';
 import { shortcutMatchesKeydown } from '../utils/shortcutCapture';
 import { useStableEvent } from './useStableEvent';
@@ -55,17 +60,6 @@ const runShortcutRules = (
     return rule.run(event) !== false;
   }
   return false;
-};
-
-const writeClipboard = (text: string, errorMessage: string): void => {
-  const writePromise = navigator.clipboard?.writeText(text);
-  if (!writePromise) {
-    return;
-  }
-
-  void writePromise.catch((error) => {
-    console.error(errorMessage, error);
-  });
 };
 
 export function useAppHotkeys({
@@ -122,15 +116,12 @@ export function useAppHotkeys({
     },
   );
 
-  const handleFilesActionShortcuts = useStableEvent(
+  const handleFilesShortcuts = useStableEvent(
     (event: KeyboardEvent, shortcutConfig: ShortcutMap) => {
+      const target = event.target as HTMLElement | null;
       // Preserve native copy/edit behavior when focus is inside an editable control.
       // Focus-search is handled earlier by `handleWindowShortcuts`.
-      if (isEditableTarget(event.target)) {
-        return false;
-      }
-
-      if (selectedPaths.length === 0) {
+      if (isEditableTarget(target)) {
         return false;
       }
 
@@ -138,55 +129,53 @@ export function useAppHotkeys({
         {
           id: 'revealInFinder',
           run: (keyboardEvent) => {
+            if (selectedPaths.length === 0) {
+              return false;
+            }
             keyboardEvent.preventDefault();
-            selectedPaths.forEach((path) => {
-              void invoke('open_in_finder', { path });
-            });
+            revealPathsInFinder(selectedPaths);
           },
         },
         {
           id: 'openResult',
           run: (keyboardEvent) => {
+            if (selectedPaths.length === 0) {
+              return false;
+            }
             keyboardEvent.preventDefault();
-            selectedPaths.forEach((path) => openResultPath(path));
+            openPaths(selectedPaths);
           },
         },
         {
           id: 'copyFilenames',
           run: (keyboardEvent) => {
+            if (selectedPaths.length === 0) {
+              return false;
+            }
             keyboardEvent.preventDefault();
-            const filenames = selectedPaths.map((path) => splitPath(path).name || path).join(' ');
-            writeClipboard(filenames, 'Failed to copy file names to clipboard');
+            copyFilenamesToClipboard(selectedPaths);
           },
         },
         {
           id: 'copyPaths',
           run: (keyboardEvent) => {
+            if (selectedPaths.length === 0) {
+              return false;
+            }
             keyboardEvent.preventDefault();
-            writeClipboard(selectedPaths.join('\n'), 'Failed to copy paths to clipboard');
+            copyPathsToClipboard(selectedPaths);
           },
         },
         {
           id: 'copyFiles',
           run: (keyboardEvent) => {
+            if (selectedPaths.length === 0) {
+              return false;
+            }
             keyboardEvent.preventDefault();
-            void invoke('copy_files_to_clipboard', { paths: selectedPaths }).catch((error) => {
-              console.error('Failed to copy files to clipboard', error);
-            });
+            copyFilesToClipboard(selectedPaths);
           },
         },
-      ]);
-    },
-  );
-
-  const handleFilesNavigation = useStableEvent(
-    (event: KeyboardEvent, shortcutConfig: ShortcutMap) => {
-      const target = event.target as HTMLElement | null;
-      if (isEditableTarget(target)) {
-        return false;
-      }
-
-      return runShortcutRules(event, shortcutConfig, [
         {
           id: 'quickLook',
           run: (keyboardEvent) => {
@@ -254,18 +243,14 @@ export function useAppHotkeys({
         return;
       }
 
-      if (handleFilesActionShortcuts(event, shortcutConfig)) {
-        return;
-      }
-
-      if (handleFilesNavigation(event, shortcutConfig)) {
+      if (handleFilesShortcuts(event, shortcutConfig)) {
         return;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleFilesActionShortcuts, handleFilesNavigation, handleWindowShortcuts]);
+  }, [handleFilesShortcuts, handleWindowShortcuts]);
 
   const handleQuickLookKeydown = useStableEvent((payload: QuickLookKeydownPayload) => {
     if (keyboardStateRef.current.activeTab !== 'files' || !keyboardStateRef.current.enabled) {
