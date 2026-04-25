@@ -289,7 +289,7 @@ Keyboard Shortcuts
 
 ── Results table ───────────────────────────
   j / ↓         Move selection down
-  k / ↑         Move selection up
+  k / ↑         Move selection up / move to query at top
   Tab           Switch focus to query
   Enter         Open item details popup
   o             Open item (default app)

@@ -205,6 +205,10 @@ pub(super) fn run_app(
                         } else if match_key(&km.results.scroll_down, key.code, key.modifiers) {
                             scroll_results(&mut app, 1);
                         } else if match_key(&km.results.scroll_up, key.code, key.modifiers) {
+                            if app.selected == 0 {
+                                app.set_focus(Focus::Query);
+                                continue;
+                            }
                             scroll_results(&mut app, -1);
                         } else if match_key(&km.results.open_details, key.code, key.modifiers) {
                             app.open_popup();
