@@ -208,7 +208,7 @@ fn default_query_clear() -> Vec<KeySpec> {
     ks(&["esc", "ctrl+u"])
 }
 fn default_query_submit() -> Vec<KeySpec> {
-    ks(&["enter", "down"])
+    ks(&["enter"])
 }
 fn default_history_older() -> Vec<KeySpec> {
     ks(&["up"])

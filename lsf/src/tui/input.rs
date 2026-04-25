@@ -171,6 +171,8 @@ pub(super) fn run_app(
                             if app.history_index.is_some() {
                                 app.browse_history_newer();
                                 app.schedule_search();
+                            } else {
+                                app.set_focus(Focus::Results);
                             }
                         } else if match_key(&app.keymap.query.cursor_left, key.code, key.modifiers)
                         {

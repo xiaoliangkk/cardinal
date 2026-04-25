@@ -284,7 +284,7 @@ Keyboard Shortcuts
   Ctrl+U        Clear query
   ←  →          Move cursor left / right
   Home / End    Move cursor to start / end
-  ↑  ↓          Browse query history
+  ↑  ↓          Browse query history / move to results
   Tab           Switch focus to results
 
 ── Results table ───────────────────────────
