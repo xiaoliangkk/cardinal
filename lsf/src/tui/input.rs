@@ -138,6 +138,8 @@ pub(super) fn run_app(
                             } else if app.request_quit() {
                                 break;
                             }
+                        } else if key.code == KeyCode::Tab {
+                            app.set_focus(Focus::Results);
                         } else if key.code == KeyCode::Backspace {
                             if app.delete_backwards() {
                                 app.schedule_search();
@@ -190,6 +192,8 @@ pub(super) fn run_app(
                             if app.request_quit() {
                                 break;
                             }
+                        } else if key.code == KeyCode::Tab {
+                            app.set_focus(Focus::Query);
                         } else if match_key(&km.results.focus_out, key.code, key.modifiers) {
                             app.set_focus(Focus::Query);
                         } else if match_key(&km.results.scroll_down, key.code, key.modifiers) {

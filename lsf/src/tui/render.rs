@@ -285,10 +285,12 @@ Keyboard Shortcuts
   ←  →          Move cursor left / right
   Home / End    Move cursor to start / end
   ↑  ↓          Browse query history
+  Tab           Switch focus to results
 
 ── Results table ───────────────────────────
   j / ↓         Move selection down
   k / ↑         Move selection up
+  Tab           Switch focus to query
   Enter         Open item details popup
   o             Open item (default app)
   v             Open selected file in editor
