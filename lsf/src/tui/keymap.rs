@@ -5,6 +5,7 @@
 //! [global]
 //! quit   = "q"
 //! leader = "ctrl+w"
+//! focus_query = "ctrl+f"
 //!
 //! [leader]
 //! focus_query   = ["j", "up"]
@@ -187,6 +188,9 @@ fn default_quit() -> Vec<KeySpec> {
 fn default_leader() -> Vec<KeySpec> {
     ks(&["ctrl+w"])
 }
+fn default_global_focus_query() -> Vec<KeySpec> {
+    ks(&["ctrl+f"])
+}
 
 // Leader
 fn default_focus_query() -> Vec<KeySpec> {
@@ -293,6 +297,12 @@ pub struct GlobalKeys {
     /// Leader prefix key (default `Ctrl+W`).
     #[serde(deserialize_with = "deser_key_list", default = "default_leader")]
     pub leader: Vec<KeySpec>,
+    /// Focus the query box (default `Ctrl+F`).
+    #[serde(
+        deserialize_with = "deser_key_list",
+        default = "default_global_focus_query"
+    )]
+    pub focus_query: Vec<KeySpec>,
 }
 
 /// Keys active while waiting for the second key of a leader sequence.
@@ -385,6 +395,7 @@ impl Default for GlobalKeys {
         Self {
             quit: default_quit(),
             leader: default_leader(),
+            focus_query: default_global_focus_query(),
         }
     }
 }

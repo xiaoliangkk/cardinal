@@ -308,6 +308,7 @@ Keyboard Shortcuts
   Ctrl+W  j/↑   Switch focus to query box
   Ctrl+W  k/↓   Switch focus to results table
   Ctrl+W  ?     Toggle this help panel
+  Ctrl+F        Switch focus to query box
   q             Quit lsf
 
 ── Popups ──────────────────────────────────

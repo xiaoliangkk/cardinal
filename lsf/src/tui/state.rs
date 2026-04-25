@@ -77,7 +77,7 @@ impl TuiApp {
             total_indexed: 0,
             selected: 0,
             status:
-                "Ctrl+W then Up/Down switches focus. Enter in query saves and moves to results."
+                "Ctrl+F focuses query. Enter in query saves and moves to results."
                     .to_string(),
             focus: Focus::Query,
             pending_ctrl_w: false,

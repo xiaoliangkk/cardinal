@@ -129,6 +129,10 @@ pub(super) fn run_app(
                         app.start_ctrl_w();
                         continue;
                     }
+                    if match_key(&app.keymap.global.focus_query, key.code, key.modifiers) {
+                        app.set_focus(Focus::Query);
+                        continue;
+                    }
 
                     if app.focus == Focus::Query {
                         if match_key(&app.keymap.query.clear, key.code, key.modifiers) {
