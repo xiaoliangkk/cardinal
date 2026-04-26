@@ -129,6 +129,10 @@ pub(super) fn run_app(
                         app.start_ctrl_w();
                         continue;
                     }
+                    if match_key(&app.keymap.global.focus_query, key.code, key.modifiers) {
+                        app.set_focus(Focus::Query);
+                        continue;
+                    }
 
                     if app.focus == Focus::Query {
                         if match_key(&app.keymap.query.clear, key.code, key.modifiers) {
@@ -138,6 +142,8 @@ pub(super) fn run_app(
                             } else if app.request_quit() {
                                 break;
                             }
+                        } else if key.code == KeyCode::Tab {
+                            app.set_focus(Focus::Results);
                         } else if key.code == KeyCode::Backspace {
                             if app.delete_backwards() {
                                 app.schedule_search();
@@ -165,6 +171,8 @@ pub(super) fn run_app(
                             if app.history_index.is_some() {
                                 app.browse_history_newer();
                                 app.schedule_search();
+                            } else {
+                                app.set_focus(Focus::Results);
                             }
                         } else if match_key(&app.keymap.query.cursor_left, key.code, key.modifiers)
                         {
@@ -190,11 +198,17 @@ pub(super) fn run_app(
                             if app.request_quit() {
                                 break;
                             }
+                        } else if key.code == KeyCode::Tab {
+                            app.set_focus(Focus::Query);
                         } else if match_key(&km.results.focus_out, key.code, key.modifiers) {
                             app.set_focus(Focus::Query);
                         } else if match_key(&km.results.scroll_down, key.code, key.modifiers) {
                             scroll_results(&mut app, 1);
                         } else if match_key(&km.results.scroll_up, key.code, key.modifiers) {
+                            if app.selected == 0 {
+                                app.set_focus(Focus::Query);
+                                continue;
+                            }
                             scroll_results(&mut app, -1);
                         } else if match_key(&km.results.open_details, key.code, key.modifiers) {
                             app.open_popup();
