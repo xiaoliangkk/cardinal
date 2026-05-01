@@ -19,6 +19,7 @@ type UseAppHotkeysOptions = {
   selectedPaths: string[];
   selectedIndicesRef: MutableRefObject<number[]>;
   focusSearchInput: () => void;
+  focusAndSelectSearchInput: () => void;
   clearSelection: () => void;
   navigateSelection: (delta: 1 | -1, options?: MoveSelectionOptions) => void;
   triggerQuickLook: () => void;
@@ -40,6 +41,7 @@ export function useAppHotkeys({
   selectedPaths,
   selectedIndicesRef,
   focusSearchInput,
+  focusAndSelectSearchInput,
   clearSelection,
   navigateSelection,
   triggerQuickLook,
@@ -58,7 +60,7 @@ export function useAppHotkeys({
     const key = event.key.toLowerCase();
     if (key === 'f') {
       event.preventDefault();
-      focusSearchInput();
+      focusAndSelectSearchInput();
       return true;
     }
 

@@ -156,13 +156,21 @@ function App() {
       const input = searchInputRef.current;
       if (!input) return;
       input.focus();
+    });
+  }, []);
+
+  const focusAndSelectSearchInput = useCallback(() => {
+    requestAnimationFrame(() => {
+      const input = searchInputRef.current;
+      if (!input) return;
+      input.focus();
       input.select();
     });
   }, []);
 
   useEffect(() => {
-    focusSearchInput();
-  }, [focusSearchInput]);
+    focusAndSelectSearchInput();
+  }, [focusAndSelectSearchInput]);
 
   const refreshSearchResults = useCallback(() => {
     queueSearch(currentQuery, { immediate: true });
@@ -190,7 +198,7 @@ function App() {
   useAppWindowListeners({
     activeTab,
     searchInputRef,
-    focusSearchInput,
+    focusAndSelectSearchInput,
     handleStatusUpdate,
     setLifecycleState,
     submitFilesQuery,
@@ -206,6 +214,7 @@ function App() {
     selectedPaths,
     selectedIndicesRef,
     focusSearchInput,
+    focusAndSelectSearchInput,
     clearSelection,
     navigateSelection,
     triggerQuickLook,

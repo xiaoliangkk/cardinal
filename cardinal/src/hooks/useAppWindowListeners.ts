@@ -18,7 +18,7 @@ type QueueSearchOptions = {
 type UseAppWindowListenersOptions = {
   activeTab: StatusTabKey;
   searchInputRef: RefObject<HTMLInputElement | null>;
-  focusSearchInput: () => void;
+  focusAndSelectSearchInput: () => void;
   handleStatusUpdate: (scannedFiles: number, processedEvents: number, rescanErrors: number) => void;
   setLifecycleState: (status: AppLifecycleStatus) => void;
   submitFilesQuery: (query: string, options?: QueueSearchOptions) => void;
@@ -36,7 +36,7 @@ type UseAppWindowListenersResult = {
 export function useAppWindowListeners({
   activeTab,
   searchInputRef,
-  focusSearchInput,
+  focusAndSelectSearchInput,
   handleStatusUpdate,
   setLifecycleState,
   submitFilesQuery,
@@ -65,10 +65,10 @@ export function useAppWindowListeners({
 
   useEffect(() => {
     const unlistenQuickLaunch = subscribeQuickLaunch(() => {
-      focusSearchInput();
+      focusAndSelectSearchInput();
     });
     return unlistenQuickLaunch;
-  }, [focusSearchInput]);
+  }, [focusAndSelectSearchInput]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {

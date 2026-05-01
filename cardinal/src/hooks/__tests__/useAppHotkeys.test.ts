@@ -27,6 +27,7 @@ type HookProps = {
   selectedPaths: string[];
   selectedIndicesRef: { current: number[] };
   focusSearchInput: () => void;
+  focusAndSelectSearchInput: () => void;
   clearSelection: () => void;
   navigateSelection: (delta: 1 | -1, options?: { extend?: boolean }) => void;
   triggerQuickLook: () => void;
@@ -35,6 +36,7 @@ type HookProps = {
 describe('useAppHotkeys', () => {
   const quickLookUnlisten = vi.fn();
   const focusSearchInput = vi.fn();
+  const focusAndSelectSearchInput = vi.fn();
   const clearSelection = vi.fn();
   const navigateSelection = vi.fn();
   const triggerQuickLook = vi.fn();
@@ -49,6 +51,7 @@ describe('useAppHotkeys', () => {
         selectedPaths: ['/tmp/a', '/tmp/b'],
         selectedIndicesRef: { current: [0] },
         focusSearchInput,
+        focusAndSelectSearchInput,
         clearSelection,
         navigateSelection,
         triggerQuickLook,
@@ -78,7 +81,7 @@ describe('useAppHotkeys', () => {
     act(() => {
       window.dispatchEvent(findEvent);
     });
-    expect(focusSearchInput).toHaveBeenCalledTimes(1);
+    expect(focusAndSelectSearchInput).toHaveBeenCalledTimes(1);
     expect(findEvent.defaultPrevented).toBe(true);
 
     const openEvent = new KeyboardEvent('keydown', {
@@ -158,7 +161,7 @@ describe('useAppHotkeys', () => {
       input.dispatchEvent(findEvent);
     });
 
-    expect(focusSearchInput).toHaveBeenCalledTimes(1);
+    expect(focusAndSelectSearchInput).toHaveBeenCalledTimes(1);
     expect(findEvent.defaultPrevented).toBe(true);
 
     input.remove();
@@ -211,6 +214,7 @@ describe('useAppHotkeys', () => {
 
     expect(clearSelection).toHaveBeenCalledTimes(1);
     expect(focusSearchInput).toHaveBeenCalledTimes(1);
+    expect(focusAndSelectSearchInput).not.toHaveBeenCalled();
     expect(navigateSelection).not.toHaveBeenCalled();
     expect(upEvent.defaultPrevented).toBe(true);
   });
@@ -241,6 +245,7 @@ describe('useAppHotkeys', () => {
       selectedPaths: ['/tmp/a', '/tmp/b'],
       selectedIndicesRef: { current: [0] },
       focusSearchInput,
+      focusAndSelectSearchInput,
       clearSelection,
       navigateSelection,
       triggerQuickLook,

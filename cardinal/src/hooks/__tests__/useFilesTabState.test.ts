@@ -232,6 +232,53 @@ describe('useFilesTabState', () => {
     expect(queueSearch).not.toHaveBeenCalled();
   });
 
+  it('uses newer history entries before moving ArrowDown into results', () => {
+    const onNavigateFromSearchToResults = vi.fn();
+    navigate.mockReturnValueOnce('newer-query');
+    const { result } = renderFilesTabState({ onNavigateFromSearchToResults });
+    const preventDefault = vi.fn();
+
+    act(() => {
+      result.current.onSearchInputKeyDown({
+        key: 'ArrowDown',
+        currentTarget: { value: 'needle' },
+        preventDefault,
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false,
+      } as unknown as ReactKeyboardEvent<HTMLInputElement>);
+    });
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('newer');
+    expect(queueSearch).toHaveBeenCalledWith('newer-query');
+    expect(onNavigateFromSearchToResults).not.toHaveBeenCalled();
+  });
+
+  it('does not move into results when ArrowDown has modifiers', () => {
+    const onNavigateFromSearchToResults = vi.fn();
+    const { result } = renderFilesTabState({ onNavigateFromSearchToResults });
+    const preventDefault = vi.fn();
+
+    act(() => {
+      result.current.onSearchInputKeyDown({
+        key: 'ArrowDown',
+        currentTarget: { value: 'needle' },
+        preventDefault,
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: true,
+      } as unknown as ReactKeyboardEvent<HTMLInputElement>);
+    });
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(queueSearch).not.toHaveBeenCalled();
+    expect(onNavigateFromSearchToResults).not.toHaveBeenCalled();
+  });
+
   it('exposes submitFilesQuery for external callers', () => {
     const { result } = renderFilesTabState();
 
