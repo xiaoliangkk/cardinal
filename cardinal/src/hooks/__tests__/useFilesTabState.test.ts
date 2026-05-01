@@ -19,6 +19,7 @@ type HookProps = {
       onSearchCommitted?: (query: string) => void;
     },
   ) => void;
+  onNavigateFromSearchToResults?: () => void;
 };
 
 describe('useFilesTabState', () => {
@@ -205,6 +206,29 @@ describe('useFilesTabState', () => {
     });
     expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledWith('newer');
+    expect(queueSearch).not.toHaveBeenCalled();
+  });
+
+  it('moves from the current query to results when ArrowDown reaches the history tail', () => {
+    const onNavigateFromSearchToResults = vi.fn();
+    const { result } = renderFilesTabState({ onNavigateFromSearchToResults });
+    const preventDefault = vi.fn();
+
+    act(() => {
+      result.current.onSearchInputKeyDown({
+        key: 'ArrowDown',
+        currentTarget: { value: 'needle' },
+        preventDefault,
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        shiftKey: false,
+      } as unknown as ReactKeyboardEvent<HTMLInputElement>);
+    });
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith('newer');
+    expect(onNavigateFromSearchToResults).toHaveBeenCalledTimes(1);
     expect(queueSearch).not.toHaveBeenCalled();
   });
 

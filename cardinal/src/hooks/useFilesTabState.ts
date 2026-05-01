@@ -12,6 +12,7 @@ type UseFilesTabStateOptions = {
   searchQuery: string;
   queueSearch: (query: string, options?: QueueSearchOptions) => void;
   maxSearchHistoryEntries?: number;
+  onNavigateFromSearchToResults?: () => void;
 };
 
 type UseFilesTabStateResult = {
@@ -36,6 +37,7 @@ export function useFilesTabState({
   searchQuery,
   queueSearch,
   maxSearchHistoryEntries = 50,
+  onNavigateFromSearchToResults,
 }: UseFilesTabStateOptions): UseFilesTabStateResult {
   const [activeTab, setActiveTab] = useState<StatusTabKey>('files');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -73,12 +75,15 @@ export function useFilesTabState({
 
       const nextValue = navigateSearchHistory(direction);
       if (nextValue === null) {
+        if (direction === 'newer') {
+          onNavigateFromSearchToResults?.();
+        }
         return;
       }
 
       queueSearch(nextValue);
     },
-    [activeTab, navigateSearchHistory, queueSearch],
+    [activeTab, navigateSearchHistory, onNavigateFromSearchToResults, queueSearch],
   );
 
   const onSearchInputKeyDown = useCallback(

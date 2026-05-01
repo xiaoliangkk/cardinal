@@ -81,6 +81,28 @@ function App() {
     t('sorting.disabled', { limit }),
   );
 
+  // Centralized selection management for the virtualized files list.
+  // Provides memoized helpers for click/keyboard selection and keeps Quick Look hooks fed.
+  const {
+    selectedIndices,
+    selectedIndicesRef,
+    activeRowIndex,
+    selectedPaths,
+    handleRowSelect,
+    selectSingleRow,
+    clearSelection,
+    moveSelection,
+  } = useSelection(displayedResults, displayedResultsVersion, virtualListRef);
+
+  const navigateFromSearchToResults = useCallback(() => {
+    if (displayedResults.length === 0) {
+      return;
+    }
+
+    selectSingleRow(0);
+    searchInputRef.current?.blur();
+  }, [displayedResults.length, selectSingleRow]);
+
   const {
     activeTab,
     isSearchFocused,
@@ -96,25 +118,13 @@ function App() {
   } = useFilesTabState({
     searchQuery: searchParams.query,
     queueSearch,
+    onNavigateFromSearchToResults: navigateFromSearchToResults,
   });
   const { filteredEvents } = useRecentFSEvents({
     caseSensitive,
     isActive: activeTab === 'events',
     eventFilterQuery,
   });
-
-  // Centralized selection management for the virtualized files list.
-  // Provides memoized helpers for click/keyboard selection and keeps Quick Look hooks fed.
-  const {
-    selectedIndices,
-    selectedIndicesRef,
-    activeRowIndex,
-    selectedPaths,
-    handleRowSelect,
-    selectSingleRow,
-    clearSelection,
-    moveSelection,
-  } = useSelection(displayedResults, displayedResultsVersion, virtualListRef);
 
   const getQuickLookPaths = useCallback(
     () => (activeTab === 'files' ? selectedPaths : []),
@@ -192,9 +202,11 @@ function App() {
 
   useAppHotkeys({
     activeTab,
+    activeRowIndex,
     selectedPaths,
     selectedIndicesRef,
     focusSearchInput,
+    clearSelection,
     navigateSelection,
     triggerQuickLook,
   });
