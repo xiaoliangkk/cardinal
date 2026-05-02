@@ -134,16 +134,15 @@ fn handle_watch_config_update(
     ) {
         Some(cache) => {
             info!(
-                "Search cache built. New root: {}, ignore paths: {:?}",
-                next_watch_root, next_ignore_paths
+                "Search cache built. New root: {}, ignore paths: {:?}, include paths: {:?}",
+                next_watch_root, next_ignore_paths, next_include_paths
             );
             emit_status_bar_update(app_handle, cache.get_total_files(), 0, 0);
             cache
         }
         None => {
             // if cache build is cancelled, we cannot reuse the old cache since
-            // it's tied to the old watch root and ignore paths; create a noop
-            // cache instead
+            // it's tied to the old watch config; create a noop cache instead
             info!("Watch config change cancelled, use noop state");
             SearchCache::noop(
                 PathBuf::from(&next_watch_root),
@@ -165,6 +164,7 @@ fn handle_watch_config_update(
             cache.last_event_id(),
             fse_latency_secs,
             cache.ignore_paths(),
+            cache.include_paths(),
         )
         .1
     };
@@ -505,6 +505,7 @@ fn perform_rescan(
             cache.last_event_id(),
             fse_latency_secs,
             cache.ignore_paths(),
+            cache.include_paths(),
         )
         .1
     };
