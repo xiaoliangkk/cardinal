@@ -24,8 +24,12 @@ impl CancellationToken {
         }
     }
 
-    pub fn new(version: u64) -> Self {
-        ACTIVE_SEARCH_VERSION.store(version, Ordering::SeqCst);
+    /// Creates a token for a search
+    ///
+    /// It increments the global search version and returns a token for
+    /// that new version, so the caller does not need to specify one.
+    pub fn new_search() -> Self {
+        let version = self::ACTIVE_SEARCH_VERSION.fetch_add(1, Ordering::SeqCst) + 1;
         Self {
             version,
             active_version: &ACTIVE_SEARCH_VERSION,
@@ -54,6 +58,10 @@ impl CancellationToken {
         } else {
             Some(())
         }
+    }
+
+    pub fn version(&self) -> u64 {
+        self.version
     }
 }
 
@@ -87,17 +95,39 @@ mod tests {
     }
 
     #[test]
+    fn search_token_cancelled_after_new_search_version() {
+        let _guard = lock_versions();
+        reset_versions();
+
+        let search_v1 = CancellationToken::new_search();
+        assert!(
+            search_v1.is_cancelled().is_some(),
+            "latest search token should start active"
+        );
+
+        let search_v2 = CancellationToken::new_search();
+        assert!(
+            search_v2.is_cancelled().is_some(),
+            "new search token should be active"
+        );
+        assert!(
+            search_v1.is_cancelled().is_none(),
+            "older search token should be cancelled by newer search"
+        );
+    }
+
+    #[test]
     fn cancelled_after_version_change() {
         let _guard = lock_versions();
         reset_versions();
-        let token_v1 = CancellationToken::new(1);
+        let token_v1 = CancellationToken::new_search();
         assert!(
             token_v1.is_cancelled().is_some(),
             "initial version should be active"
         );
 
         // Bump the active version, cancelling the older token.
-        let _token_v2 = CancellationToken::new(2);
+        let _token_v2 = CancellationToken::new_search();
         assert!(token_v1.is_cancelled().is_none());
     }
 
@@ -128,14 +158,14 @@ mod tests {
         let _guard = lock_versions();
         reset_versions();
 
-        let search_v1 = CancellationToken::new(1);
+        let search_v1 = CancellationToken::new_search();
         let _scan_v1 = CancellationToken::new_scan();
         assert!(
             search_v1.is_cancelled().is_some(),
             "scan token updates should not affect search version"
         );
 
-        let _search_v2 = CancellationToken::new(2);
+        let _search_v2 = CancellationToken::new_search();
         assert!(
             search_v1.is_cancelled().is_none(),
             "search token should still be governed by search version updates"

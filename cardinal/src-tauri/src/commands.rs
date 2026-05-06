@@ -218,9 +218,16 @@ pub struct NodeInfo {
 }
 
 #[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchResponse {
     pub results: Vec<SlabIndex>,
     pub highlights: Vec<String>,
+    pub status_code: u8,
+}
+
+impl SearchResponse {
+    pub const OK: u8 = 0;
+    pub const CANCELLED: u8 = 1;
 }
 
 #[derive(Serialize)]
@@ -276,13 +283,12 @@ pub async fn toggle_quicklook(app_handle: AppHandle, items: Vec<QuickLookItemInp
 pub async fn search(
     query: String,
     options: Option<SearchOptionsPayload>,
-    version: u64,
     state: State<'_, SearchState>,
 ) -> Result<SearchResponse, String> {
     search_activity::note_search_activity();
 
     let options = options.unwrap_or_default();
-    let cancellation_token = CancellationToken::new(version);
+    let cancellation_token = CancellationToken::new_search();
     let (result_tx, result_rx) = bounded(1);
     if let Err(e) = state.search_tx.send(SearchJob {
         query,
@@ -291,27 +297,29 @@ pub async fn search(
         result_tx,
     }) {
         error!("Failed to send search request: {e:?}");
-        return Ok(SearchResponse::default());
+        return Err(format!("Failed to send search request: {e:?}"));
     }
 
     match result_rx.recv() {
         Ok(res) => res,
         Err(e) => {
             error!("Failed to receive search result: {e:?}");
-            return Ok(SearchResponse::default());
+            return Err(format!("Failed to receive search result: {e:?}"));
         }
     }
     .map(|SearchOutcome { nodes, highlights }| {
-        let results = match nodes {
-            Some(list) => list,
+        let (status_code, results) = match nodes {
+            Some(list) => (SearchResponse::OK, list),
             None => {
+                let version = cancellation_token.version();
                 info!("Search {version} was cancelled");
-                Vec::new()
+                (SearchResponse::CANCELLED, vec![])
             }
         };
         SearchResponse {
             results,
             highlights,
+            status_code,
         }
     })
     .map_err(|e| format!("Failed to process search result: {e:?}"))

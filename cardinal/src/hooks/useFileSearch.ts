@@ -2,7 +2,11 @@ import { useReducer, useRef, useCallback, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { SEARCH_DEBOUNCE_MS } from '../constants';
-import type { AppLifecycleStatus, SearchResponsePayload } from '../types/ipc';
+import {
+  SearchStatusCode,
+  type AppLifecycleStatus,
+  type SearchResponsePayload,
+} from '../types/ipc';
 import type { SlabIndex } from '../types/slab';
 
 type SearchError = string | Error | null;
@@ -159,6 +163,9 @@ type UseFileSearchResult = {
 export function useFileSearch(): UseFileSearchResult {
   const [state, dispatch] = useReducer(reducer, initialSearchState);
   const latestSearchRef = useRef<SearchParams>(initialSearchParams);
+  // `search-cancellation` maintains an atomic counter
+  // and will auto-increment for each search request
+  // so this only serves as a defence-in-depth
   const searchVersionRef = useRef(0);
   const hasInitialSearchRunRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -210,6 +217,9 @@ export function useFileSearch(): UseFileSearchResult {
   const handleSearch = useCallback(async (overrides: Partial<SearchParams> = {}) => {
     const nextSearch = { ...latestSearchRef.current, ...overrides };
     latestSearchRef.current = nextSearch;
+    // the backend already has search version cancellation
+    // but we keep the check at frontend to make sure that
+    // the UI always reflects the latest request
     const requestVersion = searchVersionRef.current + 1;
     searchVersionRef.current = requestVersion;
 
@@ -233,17 +243,19 @@ export function useFileSearch(): UseFileSearchResult {
         options: {
           caseInsensitive: !caseSensitive,
         },
-        version: requestVersion,
       });
 
-      const searchResults = rawResults?.results as SlabIndex[];
-      const highlightTerms = Array.isArray(rawResults?.highlights)
-        ? rawResults.highlights.filter((term): term is string => typeof term === 'string')
-        : [];
-
-      if (searchVersionRef.current !== requestVersion) {
+      if (
+        rawResults.statusCode === SearchStatusCode.CANCELLED ||
+        searchVersionRef.current !== requestVersion
+      ) {
         return;
       }
+
+      const searchResults = rawResults.results as SlabIndex[];
+      const highlightTerms = Array.isArray(rawResults.highlights)
+        ? rawResults.highlights.filter((term): term is string => typeof term === 'string')
+        : [];
 
       cancelTimer(loadingDelayTimerRef);
 

@@ -25,7 +25,13 @@ export type RecentEventPayload = {
 
 export type AppLifecycleStatus = 'Initializing' | 'Updating' | 'Ready';
 
+export enum SearchStatusCode {
+  OK = 0,
+  CANCELLED = 1,
+}
+
 export type SearchResponsePayload = {
   results: number[];
   highlights?: string[];
+  statusCode: SearchStatusCode;
 };
