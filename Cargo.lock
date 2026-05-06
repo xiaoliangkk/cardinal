@@ -137,6 +137,7 @@ dependencies = [
  "bitflags",
  "crossbeam-channel",
  "dispatch2",
+ "fswalk",
  "libc",
  "objc2-core-foundation",
  "objc2-core-services",

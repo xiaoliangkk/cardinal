@@ -294,6 +294,7 @@ fn run_logic_thread(
             cache.last_event_id(),
             FSE_LATENCY_SECS,
             cache.ignore_paths(),
+            cache.include_paths(),
         )
         .1
     };
@@ -348,9 +349,8 @@ fn wait_for_logic_start(rx: Receiver<LogicStartConfig>) -> Option<LogicStartConf
         match rx.recv_timeout(Duration::from_millis(100)) {
             Ok(config) => {
                 info!(
-                    "Received Full Disk Access grant, starting background processing (watch_root={}, ignore_paths={})",
-                    config.watch_root,
-                    config.ignore_paths.len()
+                    "Received Full Disk Access grant, starting background processing (watch_root={}, ignore_paths={:?}, include_paths={:?})",
+                    config.watch_root, config.ignore_paths, config.include_paths
                 );
                 return Some(config);
             }

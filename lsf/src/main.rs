@@ -60,6 +60,7 @@ fn main() -> Result<()> {
             cache.last_event_id(),
             0.1,
             cache.ignore_paths(),
+            cache.include_paths(),
         );
         println!("Processing changes of dev:{dev} during preparation.");
         loop {
@@ -100,6 +101,7 @@ fn main() -> Result<()> {
                             cache.last_event_id(),
                             0.1,
                             cache.ignore_paths(),
+                            cache.include_paths(),
                         )
                         .1;
                     }

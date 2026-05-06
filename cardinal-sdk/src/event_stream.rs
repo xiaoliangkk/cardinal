@@ -170,6 +170,7 @@ impl EventWatcher {
         since_event_id: FSEventStreamEventId,
         latency: f64,
         ignore_paths: Box<[PathBuf]>,
+        include_paths: Box<[PathBuf]>,
     ) -> (dev_t, EventWatcher) {
         let (_cancellation_token, cancellation_token_rx) = bounded::<()>(1);
         let (sender, receiver) = unbounded();
@@ -178,7 +179,7 @@ impl EventWatcher {
             since_event_id,
             latency,
             Box::new(move |events| {
-                let events = filter_ignored_events(events, &ignore_paths);
+                let events = filter_events_by_paths(events, &ignore_paths, &include_paths);
                 if !events.is_empty() {
                     let _ = sender.send(events);
                 }
@@ -202,14 +203,16 @@ impl EventWatcher {
     }
 }
 
-fn filter_ignored_events(events: Vec<FsEvent>, ignore_paths: &[PathBuf]) -> Vec<FsEvent> {
+fn filter_events_by_paths(
+    events: Vec<FsEvent>,
+    ignore_paths: &[PathBuf],
+    include_paths: &[PathBuf],
+) -> Vec<FsEvent> {
     events
         .into_iter()
         .filter(|event| {
             event.flag.contains(EventFlag::HistoryDone)
-                || !ignore_paths
-                    .iter()
-                    .any(|ignore| event.path.starts_with(ignore))
+                || !fswalk::should_ignore_path(&event.path, ignore_paths, include_paths)
         })
         .collect()
 }
@@ -266,6 +269,7 @@ mod tests {
             current_event_id(),
             0.05,
             Vec::new().into_boxed_slice(),
+            Vec::new().into_boxed_slice(),
         );
         let initial_events = watcher.recv().unwrap();
         assert!(initial_events.len() == 1);
@@ -307,6 +311,7 @@ mod tests {
             current_event_id(),
             0.05,
             Vec::new().into_boxed_slice(),
+            Vec::new().into_boxed_slice(),
         );
         drop(initial_watcher);
 
@@ -317,6 +322,7 @@ mod tests {
             watch_path,
             current_event_id(),
             0.05,
+            Vec::new().into_boxed_slice(),
             Vec::new().into_boxed_slice(),
         );
 
@@ -352,44 +358,113 @@ mod tests {
     }
 
     #[test]
-    fn filter_ignored_events_drops_ignored_paths_but_keeps_history_done() {
-        let ignored = PathBuf::from("/root/ignored");
-        let events = vec![
+    fn filter_events_by_paths_uses_fswalk_include_ignore_semantics() {
+        fn paths(raw: &[&str]) -> Vec<PathBuf> {
+            raw.iter().map(PathBuf::from).collect()
+        }
+
+        fn item(id: u64, path: &str) -> FsEvent {
             FsEvent {
-                path: PathBuf::from("/root/ignored/file.txt"),
+                path: PathBuf::from(path),
                 flag: EventFlag::ItemCreated,
-                id: 1,
-            },
+                id,
+            }
+        }
+
+        fn history_done(id: u64, path: &str) -> FsEvent {
             FsEvent {
-                path: PathBuf::from("/root/visible/file.txt"),
-                flag: EventFlag::ItemCreated,
-                id: 2,
-            },
-            FsEvent {
-                path: PathBuf::from("/root"),
+                path: PathBuf::from(path),
                 flag: EventFlag::HistoryDone,
-                id: 3,
-            },
+                id,
+            }
+        }
+
+        let cases = [
+            (
+                "keeps visible paths without ignores",
+                paths(&[]),
+                paths(&[]),
+                vec![item(1, "/root/visible/file.txt")],
+                vec![1],
+            ),
+            (
+                "drops paths under an ignored directory",
+                paths(&["/root/ignored"]),
+                paths(&[]),
+                vec![
+                    item(1, "/root/ignored/file.txt"),
+                    item(2, "/root/visible/file.txt"),
+                ],
+                vec![2],
+            ),
+            (
+                "keeps included subtree under ignored parent",
+                paths(&["/root/ignored"]),
+                paths(&["/root/ignored/included"]),
+                vec![
+                    item(1, "/root/ignored/file.txt"),
+                    item(2, "/root/ignored/included/file.txt"),
+                    item(3, "/root/ignored/included"),
+                ],
+                vec![2, 3],
+            ),
+            (
+                "keeps strict ancestors of include paths",
+                paths(&["/root/ignored"]),
+                paths(&["/root/ignored/included/file.txt"]),
+                vec![
+                    item(1, "/root/ignored"),
+                    item(2, "/root/ignored/included"),
+                    item(3, "/root/ignored/other"),
+                ],
+                vec![1, 2],
+            ),
+            (
+                "drops deeper re-ignored subtree below included path",
+                paths(&["/root/ignored", "/root/ignored/included/reignored"]),
+                paths(&["/root/ignored/included"]),
+                vec![
+                    item(1, "/root/ignored/included/file.txt"),
+                    item(2, "/root/ignored/included/reignored/file.txt"),
+                ],
+                vec![1],
+            ),
+            (
+                "keeps ties between ignore and include paths",
+                paths(&["/root/tie"]),
+                paths(&["/root/tie"]),
+                vec![item(1, "/root/tie"), item(2, "/root/tie/file.txt")],
+                vec![1, 2],
+            ),
+            (
+                "keeps history done events even under ignored paths",
+                paths(&["/root/ignored"]),
+                paths(&[]),
+                vec![
+                    item(1, "/root/ignored/file.txt"),
+                    history_done(2, "/root/ignored"),
+                ],
+                vec![2],
+            ),
+            (
+                "does not let similar path prefixes match",
+                paths(&["/root/ignored"]),
+                paths(&[]),
+                vec![
+                    item(1, "/root/ignored/file.txt"),
+                    item(2, "/root/ignored-sibling/file.txt"),
+                ],
+                vec![2],
+            ),
         ];
 
-        let filtered = filter_ignored_events(events, &[ignored]);
-
-        assert_eq!(
-            filtered.len(),
-            2,
-            "ignored subtree events should be dropped"
-        );
-        assert!(
-            filtered
-                .iter()
-                .all(|event| &event.path != "/root/ignored/file.txt"),
-            "ignored event must not be forwarded to the main loop"
-        );
-        assert!(
-            filtered
-                .iter()
-                .any(|event| event.flag.contains(EventFlag::HistoryDone)),
-            "HistoryDone must still be delivered"
-        );
+        for (name, ignore_paths, include_paths, events, expected_ids) in cases {
+            let filtered = filter_events_by_paths(events, &ignore_paths, &include_paths);
+            let actual_ids = filtered
+                .into_iter()
+                .map(|event| event.id)
+                .collect::<Vec<_>>();
+            assert_eq!(actual_ids, expected_ids, "{name}");
+        }
     }
 }
