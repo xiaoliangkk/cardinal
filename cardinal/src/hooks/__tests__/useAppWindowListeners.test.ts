@@ -24,7 +24,7 @@ const mockedSubscribeWindowDragDrop = vi.mocked(subscribeWindowDragDrop);
 type HookProps = {
   activeTab: 'files' | 'events';
   searchInputRef: RefObject<HTMLInputElement | null>;
-  focusSearchInput: () => void;
+  focusAndSelectSearchInput: () => void;
   handleStatusUpdate: (scannedFiles: number, processedEvents: number, rescanErrors: number) => void;
   setLifecycleState: (status: 'Initializing' | 'Updating' | 'Ready') => void;
   submitFilesQuery: (query: string, options?: { immediate?: boolean }) => void;
@@ -37,7 +37,7 @@ describe('useAppWindowListeners', () => {
   const quickLaunchUnlisten = vi.fn();
   const dragDropUnlisten = vi.fn();
 
-  const focusSearchInput = vi.fn();
+  const focusAndSelectSearchInput = vi.fn();
   const handleStatusUpdate = vi.fn();
   const setLifecycleState = vi.fn();
   const submitFilesQuery = vi.fn();
@@ -58,7 +58,7 @@ describe('useAppWindowListeners', () => {
       initialProps: {
         activeTab: 'files',
         searchInputRef,
-        focusSearchInput,
+        focusAndSelectSearchInput,
         handleStatusUpdate,
         setLifecycleState,
         submitFilesQuery,
@@ -123,7 +123,7 @@ describe('useAppWindowListeners', () => {
     act(() => {
       quickLaunchCallback?.();
     });
-    expect(focusSearchInput).toHaveBeenCalledTimes(1);
+    expect(focusAndSelectSearchInput).toHaveBeenCalledTimes(1);
   });
 
   it('handles drag-drop search routing for files and events tabs', async () => {
@@ -146,7 +146,7 @@ describe('useAppWindowListeners', () => {
     rerender({
       activeTab: 'events',
       searchInputRef,
-      focusSearchInput,
+      focusAndSelectSearchInput,
       handleStatusUpdate,
       setLifecycleState,
       submitFilesQuery,

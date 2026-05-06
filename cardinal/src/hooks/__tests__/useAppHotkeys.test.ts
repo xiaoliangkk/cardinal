@@ -23,9 +23,12 @@ const mockedOpenResultPath = vi.mocked(openResultPath);
 
 type HookProps = {
   activeTab: 'files' | 'events';
+  activeRowIndex: number | null;
   selectedPaths: string[];
   selectedIndicesRef: { current: number[] };
   focusSearchInput: () => void;
+  focusAndSelectSearchInput: () => void;
+  clearSelection: () => void;
   navigateSelection: (delta: 1 | -1, options?: { extend?: boolean }) => void;
   triggerQuickLook: () => void;
 };
@@ -33,6 +36,8 @@ type HookProps = {
 describe('useAppHotkeys', () => {
   const quickLookUnlisten = vi.fn();
   const focusSearchInput = vi.fn();
+  const focusAndSelectSearchInput = vi.fn();
+  const clearSelection = vi.fn();
   const navigateSelection = vi.fn();
   const triggerQuickLook = vi.fn();
 
@@ -42,9 +47,12 @@ describe('useAppHotkeys', () => {
     renderHook((props: HookProps) => useAppHotkeys(props), {
       initialProps: {
         activeTab: 'files',
+        activeRowIndex: 1,
         selectedPaths: ['/tmp/a', '/tmp/b'],
         selectedIndicesRef: { current: [0] },
         focusSearchInput,
+        focusAndSelectSearchInput,
+        clearSelection,
         navigateSelection,
         triggerQuickLook,
         ...overrides,
@@ -73,7 +81,7 @@ describe('useAppHotkeys', () => {
     act(() => {
       window.dispatchEvent(findEvent);
     });
-    expect(focusSearchInput).toHaveBeenCalledTimes(1);
+    expect(focusAndSelectSearchInput).toHaveBeenCalledTimes(1);
     expect(findEvent.defaultPrevented).toBe(true);
 
     const openEvent = new KeyboardEvent('keydown', {
@@ -153,7 +161,7 @@ describe('useAppHotkeys', () => {
       input.dispatchEvent(findEvent);
     });
 
-    expect(focusSearchInput).toHaveBeenCalledTimes(1);
+    expect(focusAndSelectSearchInput).toHaveBeenCalledTimes(1);
     expect(findEvent.defaultPrevented).toBe(true);
 
     input.remove();
@@ -193,6 +201,24 @@ describe('useAppHotkeys', () => {
     expect(navigateSelection).toHaveBeenCalledWith(-1, { extend: false });
   });
 
+  it('returns focus to the search input when navigating up from the first result', () => {
+    renderHotkeys({ activeRowIndex: 0 });
+
+    const upEvent = new KeyboardEvent('keydown', {
+      key: 'ArrowUp',
+      cancelable: true,
+    });
+    act(() => {
+      window.dispatchEvent(upEvent);
+    });
+
+    expect(clearSelection).toHaveBeenCalledTimes(1);
+    expect(focusSearchInput).toHaveBeenCalledTimes(1);
+    expect(focusAndSelectSearchInput).not.toHaveBeenCalled();
+    expect(navigateSelection).not.toHaveBeenCalled();
+    expect(upEvent.defaultPrevented).toBe(true);
+  });
+
   it('handles Quick Look runtime keydown events and cleanup', async () => {
     const { rerender, unmount } = renderHotkeys();
 
@@ -215,9 +241,12 @@ describe('useAppHotkeys', () => {
 
     rerender({
       activeTab: 'events',
+      activeRowIndex: 0,
       selectedPaths: ['/tmp/a', '/tmp/b'],
       selectedIndicesRef: { current: [0] },
       focusSearchInput,
+      focusAndSelectSearchInput,
+      clearSelection,
       navigateSelection,
       triggerQuickLook,
     });

@@ -81,6 +81,28 @@ function App() {
     t('sorting.disabled', { limit }),
   );
 
+  // Centralized selection management for the virtualized files list.
+  // Provides memoized helpers for click/keyboard selection and keeps Quick Look hooks fed.
+  const {
+    selectedIndices,
+    selectedIndicesRef,
+    activeRowIndex,
+    selectedPaths,
+    handleRowSelect,
+    selectSingleRow,
+    clearSelection,
+    moveSelection,
+  } = useSelection(displayedResults, displayedResultsVersion, virtualListRef);
+
+  const navigateFromSearchToResults = useCallback(() => {
+    if (displayedResults.length === 0) {
+      return;
+    }
+
+    selectSingleRow(0);
+    searchInputRef.current?.blur();
+  }, [displayedResults.length, selectSingleRow]);
+
   const {
     activeTab,
     isSearchFocused,
@@ -96,25 +118,13 @@ function App() {
   } = useFilesTabState({
     searchQuery: searchParams.query,
     queueSearch,
+    onNavigateFromSearchToResults: navigateFromSearchToResults,
   });
   const { filteredEvents } = useRecentFSEvents({
     caseSensitive,
     isActive: activeTab === 'events',
     eventFilterQuery,
   });
-
-  // Centralized selection management for the virtualized files list.
-  // Provides memoized helpers for click/keyboard selection and keeps Quick Look hooks fed.
-  const {
-    selectedIndices,
-    selectedIndicesRef,
-    activeRowIndex,
-    selectedPaths,
-    handleRowSelect,
-    selectSingleRow,
-    clearSelection,
-    moveSelection,
-  } = useSelection(displayedResults, displayedResultsVersion, virtualListRef);
 
   const getQuickLookPaths = useCallback(
     () => (activeTab === 'files' ? selectedPaths : []),
@@ -146,13 +156,21 @@ function App() {
       const input = searchInputRef.current;
       if (!input) return;
       input.focus();
+    });
+  }, []);
+
+  const focusAndSelectSearchInput = useCallback(() => {
+    requestAnimationFrame(() => {
+      const input = searchInputRef.current;
+      if (!input) return;
+      input.focus();
       input.select();
     });
   }, []);
 
   useEffect(() => {
-    focusSearchInput();
-  }, [focusSearchInput]);
+    focusAndSelectSearchInput();
+  }, [focusAndSelectSearchInput]);
 
   const refreshSearchResults = useCallback(() => {
     queueSearch(currentQuery, { immediate: true });
@@ -182,7 +200,7 @@ function App() {
   useAppWindowListeners({
     activeTab,
     searchInputRef,
-    focusSearchInput,
+    focusAndSelectSearchInput,
     handleStatusUpdate,
     setLifecycleState,
     submitFilesQuery,
@@ -194,9 +212,12 @@ function App() {
 
   useAppHotkeys({
     activeTab,
+    activeRowIndex,
     selectedPaths,
     selectedIndicesRef,
     focusSearchInput,
+    focusAndSelectSearchInput,
+    clearSelection,
     navigateSelection,
     triggerQuickLook,
   });

@@ -15,9 +15,12 @@ type MoveSelectionOptions = {
 
 type UseAppHotkeysOptions = {
   activeTab: StatusTabKey;
+  activeRowIndex: number | null;
   selectedPaths: string[];
   selectedIndicesRef: MutableRefObject<number[]>;
   focusSearchInput: () => void;
+  focusAndSelectSearchInput: () => void;
+  clearSelection: () => void;
   navigateSelection: (delta: 1 | -1, options?: MoveSelectionOptions) => void;
   triggerQuickLook: () => void;
 };
@@ -34,25 +37,30 @@ const isEditableTarget = (target: EventTarget | null): boolean => {
 
 export function useAppHotkeys({
   activeTab,
+  activeRowIndex,
   selectedPaths,
   selectedIndicesRef,
   focusSearchInput,
+  focusAndSelectSearchInput,
+  clearSelection,
   navigateSelection,
   triggerQuickLook,
 }: UseAppHotkeysOptions): void {
-  const keyboardStateRef = useRef<{ activeTab: StatusTabKey }>({
+  const keyboardStateRef = useRef<{ activeTab: StatusTabKey; activeRowIndex: number | null }>({
     activeTab,
+    activeRowIndex,
   });
 
   useEffect(() => {
     keyboardStateRef.current.activeTab = activeTab;
-  }, [activeTab]);
+    keyboardStateRef.current.activeRowIndex = activeRowIndex;
+  }, [activeTab, activeRowIndex]);
 
   const handleMetaShortcut = useStableEvent((event: KeyboardEvent, currentTab: StatusTabKey) => {
     const key = event.key.toLowerCase();
     if (key === 'f') {
       event.preventDefault();
-      focusSearchInput();
+      focusAndSelectSearchInput();
       return true;
     }
 
@@ -111,6 +119,18 @@ export function useAppHotkeys({
       if (event.altKey || event.ctrlKey || event.metaKey) {
         return true;
       }
+
+      if (
+        event.key === 'ArrowUp' &&
+        !event.shiftKey &&
+        keyboardStateRef.current.activeRowIndex === 0
+      ) {
+        event.preventDefault();
+        clearSelection();
+        focusSearchInput();
+        return true;
+      }
+
       event.preventDefault();
       const delta = event.key === 'ArrowDown' ? 1 : -1;
       navigateSelection(delta, { extend: event.shiftKey });
