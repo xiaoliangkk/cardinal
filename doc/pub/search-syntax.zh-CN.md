@@ -148,7 +148,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:`  | 指定文件夹下的任意后代（递归）                               | `in:/Users/demo/Projects report draft`      |
 | `nosubfolders:`    | 文件夹自身 + 直接文件子项（不包含子文件夹）                 | `nosubfolders:/Users/demo/Projects ext:log` |
 
-这些过滤器以绝对路径作为参数；前导 `~` 会展开为用户主目录。
+这些过滤器以绝对路径作为参数；前导 `~` 会展开为用户主目录。路径查找会跟随 UI 的大小写开关：关闭大小写匹配时，每个路径片段都可以忽略大小写匹配。
 
 ### 4.4 类型过滤器：`type:`
 

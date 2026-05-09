@@ -148,7 +148,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:`  | 指定資料夾下的任意後代（遞迴）                               | `in:/Users/demo/Projects report draft`      |
 | `nosubfolders:`    | 資料夾本身 + 直接檔案子項（不含子資料夾）                   | `nosubfolders:/Users/demo/Projects ext:log` |
 
-這些過濾器以絕對路徑作為參數；前導 `~` 會展開為使用者家目錄。
+這些過濾器以絕對路徑作為參數；前導 `~` 會展開為使用者家目錄。路徑查找會跟隨 UI 的大小寫開關：關閉大小寫匹配時，每個路徑片段都可以忽略大小寫匹配。
 
 ### 4.4 類型過濾器：`type:`
 

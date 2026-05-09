@@ -397,6 +397,14 @@ impl SearchCache {
 
     /// Locate the slab index for an absolute path when it belongs to the watch root.
     pub fn node_index_for_path(&self, path: &Path) -> Option<SlabIndex> {
+        self.node_index_for_path_with_case(path, false)
+    }
+
+    pub(crate) fn node_index_for_path_with_case(
+        &self,
+        path: &Path,
+        case_insensitive: bool,
+    ) -> Option<SlabIndex> {
         let Ok(path) = path.strip_prefix("/") else {
             return None;
         };
@@ -407,7 +415,7 @@ impl SearchCache {
                 .iter()
                 .find_map(|&child| {
                     let name = self.file_nodes[child].name();
-                    if OsStr::new(name) == segment {
+                    if path_segment_matches(name, segment, case_insensitive) {
                         Some(child)
                     } else {
                         None
@@ -800,6 +808,22 @@ impl SearchCache {
         }
         Ok(())
     }
+}
+
+fn path_segment_matches(name: &str, segment: &OsStr, case_insensitive: bool) -> bool {
+    if OsStr::new(name) == segment {
+        return true;
+    }
+
+    if !case_insensitive {
+        return false;
+    }
+
+    let Some(segment) = segment.to_str() else {
+        return false;
+    };
+
+    name.to_lowercase() == segment.to_lowercase()
 }
 
 /// Compute the minimal set of paths that must be rescanned for a batch of FsEvents.

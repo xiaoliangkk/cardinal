@@ -148,7 +148,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:`  | 指定フォルダのすべての子孫（再帰）                             | `in:/Users/demo/Projects report draft`    |
 | `nosubfolders:`    | フォルダ自身＋直下のファイル（サブフォルダなし）              | `nosubfolders:/Users/demo/Projects ext:log` |
 
-これらのフィルタは引数に絶対パスを取ります。先頭の `~` はユーザーホームに展開されます。
+これらのフィルタは引数に絶対パスを取ります。先頭の `~` はユーザーホームに展開されます。パス解決は UI の大文字/小文字トグルに従います。大文字/小文字を区別しない場合、各パスセグメントは大小を無視して一致できます。
 
 ### 4.4 タイプフィルタ: `type:`
 

@@ -148,7 +148,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:`| 지정한 폴더의 모든 하위 항목 (재귀)                     | `in:/Users/demo/Projects report draft`     |
 | `nosubfolders:`  | 폴더 자체 + 직계 파일 (하위 폴더 없음)                 | `nosubfolders:/Users/demo/Projects ext:log` |
 
-이 필터들은 절대 경로를 인자로 받으며, 앞의 `~`는 사용자 홈 디렉터리로 확장됩니다.
+이 필터들은 절대 경로를 인자로 받으며, 앞의 `~`는 사용자 홈 디렉터리로 확장됩니다. 경로 찾기는 UI 대/소문자 토글을 따릅니다. 대/소문자 구분 매칭이 꺼져 있으면 각 경로 세그먼트는 대/소문자를 무시하고 일치할 수 있습니다.
 
 ### 4.4 타입 필터: `type:`
 

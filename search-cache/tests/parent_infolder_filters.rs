@@ -2,7 +2,7 @@
 //! Verifies the optimized implementation that directly accesses child nodes
 //! instead of scanning the entire file tree.
 
-use search_cache::SearchCache;
+use search_cache::{SearchCache, SearchOptions};
 use search_cancel::CancellationToken;
 use std::path::PathBuf;
 use tempdir::TempDir;
@@ -368,4 +368,82 @@ fn test_infolder_with_negation() {
     for path in &paths {
         assert_ne!(path.extension().and_then(|s| s.to_str()), Some("rs"));
     }
+}
+
+#[test]
+fn scope_filters_follow_case_insensitive_option() {
+    let temp_dir = TempDir::new("scope_filters_case_insensitive").unwrap();
+    let root = temp_dir.path().to_path_buf();
+    std::mem::forget(temp_dir);
+
+    let scope = root.join("CaseScope");
+    std::fs::create_dir_all(scope.join("Nested")).unwrap();
+    std::fs::File::create(scope.join("Direct.txt")).unwrap();
+    std::fs::File::create(scope.join("Nested/Deep.txt")).unwrap();
+
+    let mut cache = SearchCache::walk_fs(&root);
+    let wrong_case_scope = root.join("casescope");
+    let case_insensitive = SearchOptions {
+        case_insensitive: true,
+    };
+
+    let parent_query = format!("parent:{}", wrong_case_scope.display());
+    let parent = cache
+        .search_with_options(&parent_query, case_insensitive, CancellationToken::noop())
+        .expect("case-insensitive parent path should resolve")
+        .nodes
+        .expect("parent should return direct children");
+    let parent_nodes = cache.expand_file_nodes(&parent);
+    assert_eq!(parent_nodes.len(), 2);
+    assert!(
+        parent_nodes
+            .iter()
+            .any(|node| node.path.ends_with("CaseScope/Direct.txt"))
+    );
+    assert!(
+        parent_nodes
+            .iter()
+            .any(|node| node.path.ends_with("CaseScope/Nested"))
+    );
+
+    let infolder_query = format!("infolder:{}", wrong_case_scope.display());
+    let infolder = cache
+        .search_with_options(&infolder_query, case_insensitive, CancellationToken::noop())
+        .expect("case-insensitive infolder path should resolve")
+        .nodes
+        .expect("infolder should return descendants");
+    let infolder_nodes = cache.expand_file_nodes(&infolder);
+    assert_eq!(infolder_nodes.len(), 3);
+    assert!(
+        infolder_nodes
+            .iter()
+            .any(|node| node.path.ends_with("CaseScope/Nested/Deep.txt"))
+    );
+
+    let nosubfolders_query = format!("nosubfolders:{}", wrong_case_scope.display());
+    let nosubfolders = cache
+        .search_with_options(
+            &nosubfolders_query,
+            case_insensitive,
+            CancellationToken::noop(),
+        )
+        .expect("case-insensitive nosubfolders path should resolve")
+        .nodes
+        .expect("nosubfolders should return direct file children");
+    let nosubfolders_nodes = cache.expand_file_nodes(&nosubfolders);
+    assert_eq!(nosubfolders_nodes.len(), 1);
+    assert!(nosubfolders_nodes[0].path.ends_with("CaseScope/Direct.txt"));
+
+    assert!(
+        cache
+            .search_with_options(
+                &parent_query,
+                SearchOptions {
+                    case_insensitive: false,
+                },
+                CancellationToken::noop(),
+            )
+            .is_err(),
+        "case-sensitive parent path should still require exact path casing"
+    );
 }

@@ -148,7 +148,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:` | Jeder Nachkomme des angegebenen Ordners (rekursiv)            | `in:/Users/demo/Projects report draft`        |
 | `nosubfolders:`   | Ordner selbst plus direkte Datei-Kinder (keine Unterordner)    | `nosubfolders:/Users/demo/Projects ext:log`   |
 
-Diese Filter erwarten einen absoluten Pfad als Argument; ein führendes `~` wird in das Home-Verzeichnis des Users erweitert.
+Diese Filter erwarten einen absoluten Pfad als Argument; ein führendes `~` wird in das Home-Verzeichnis des Users erweitert. Die Pfadauflösung folgt dem UI-Schalter für Groß-/Kleinschreibung: wenn case-sensitives Matching aus ist, kann jedes Pfadsegment ohne Beachtung der Groß-/Kleinschreibung matchen.
 
 ### 4.4 Typfilter: `type:`
 

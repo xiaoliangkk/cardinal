@@ -148,7 +148,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:` | Qualsiasi discendente della cartella indicata (ricorsivo)         | `in:/Users/demo/Projects report draft`        |
 | `nosubfolders:`   | La cartella stessa più i file figli diretti (senza sottocartelle) | `nosubfolders:/Users/demo/Projects ext:log`   |
 
-Questi filtri accettano un percorso assoluto come argomento; un `~` iniziale viene espanso alla home dell'utente.
+Questi filtri accettano un percorso assoluto come argomento; un `~` iniziale viene espanso alla home dell'utente. La risoluzione del percorso segue il toggle maiuscole/minuscole della UI: quando il matching sensibile alle maiuscole è disattivato, ogni segmento del percorso può corrispondere senza distinzione di maiuscole.
 
 ### 4.4 Filtro di tipo: `type:`
 
