@@ -12,14 +12,17 @@ Cardinal'ın sorgu dili Everything sözdizimine bilinçli olarak yakındır, anc
   - **Kelimeler / ifadeler** (düz metin, tırnaklı dizgeler, jokerler),
   - **Filtreler** (`ext:`, `type:`, `dm:`, `content:`, …),
   - **Mantıksal operatörler** (`AND`, `OR`, `NOT` / `!`).
-- Eşleştirme, her dizinlenmiş dosyanın yalnızca taban adıyla değil, **tam yoluyla** yapılır.
+- Eşleştirme **yol bileşenleri** odaklıdır:
+  - `/` içermeyen kelimeler, ifadeler ve jokerler dosya veya klasörün kendi adıyla eşleşir.
+  - `/` ile ayrılmış belirteçler bitişik yol bileşenleri zinciriyle eşleşir ve son segmentle eşleşen öğeyi döndürür.
+  - Mantıksal operatörler aynı dizinlenmiş öğe için sonuç kümelerini birleştirir; `foo bar`, bir öğenin iki belirteçle de eşleşmesi gerektiği anlamına gelir, atalarının birini ve taban adının diğerini karşılayabileceği anlamına gelmez.
 - Büyük/küçük harf duyarlılığı UI anahtarıyla kontrol edilir:
   - **Büyük/küçük harfe duyarsız** modda, motor ad/içerik eşleşmeleri için hem sorguyu hem adayları küçültür.
   - **Büyük/küçük harfe duyarlı** modda, motor baytları olduğu gibi karşılaştırır.
 
 Hızlı örnekler:
 ```text
-report draft                  # yolu hem “report” hem “draft” içeren dosyalar
+report draft                  # kendi adı hem “report” hem “draft” içeren dosya veya klasörler
 ext:pdf briefing              # adı “briefing” içeren PDF dosyaları
 parent:/Users demo!.psd       # /Users altında .psd dosyalarını hariç tut
 regex:^Report.*2025$          # bir regex'e uyan adlar
@@ -32,10 +35,11 @@ ext:png;jpg travel|vacation   # adı “travel” veya “vacation” içeren PN
 
 ### 2.1 Basit belirteçler ve ifadeler
 
-- Tırnaksız bir belirteç, yolda **alt dize eşleşmesidir**:
-  - `demo`, `/Users/demo/Projects/cardinal.md` ile eşleşir.
+- Tırnaksız ve `/` içermeyen bir belirteç, tek bir yol bileşeninde **alt dize eşleşmesidir**:
+  - `demo`, `/Users/demo` klasörü ve `/Users/alice/demo-notes.md` ile eşleşir.
+  - Sadece bir üst klasörün adı `demo` olduğu için `/Users/demo/Projects/cardinal.md` ile eşleşmez; alt öğeleri aramak için `demo/**` kullanın.
 - Çift tırnaklı ifadeler, boşluklar dahil tam diziyi eşleştirir:
-  - `"Application Support"`, `/Library/Application Support/...` ile eşleşir.
+  - `"Application Support"`, `/Library/Application Support` ile eşleşir.
 - UI büyük/küçük harf anahtarı ikisine de uygulanır.
 
 ### 2.2 Jokerler (`*`, `?`, `**`)
@@ -48,6 +52,7 @@ ext:png;jpg travel|vacation   # adı “travel” veya “vacation” içeren PN
   - `report-??.txt` — `report-01.txt`, `report-AB.txt` vb.
   - `a*b` — `a` ile başlayıp `b` ile biten adlar.
   - `src/**/Cargo.toml` — `src/` altında herhangi bir yerde `Cargo.toml`.
+- Basit belirteçler gibi, `/` içermeyen joker belirteçler yol bileşenleriyle eşleşir. `src/**/Cargo.toml` gibi eğik çizgiyle ayrılmış bir joker zinciri eşleşen `Cargo.toml` öğelerini döndürürken, `src/**` eşleşen `src` klasörlerinin altındaki alt öğeleri döndürür.
 - Harfiyen `*` veya `?` gerekiyorsa belirteci tırnaklayın: `"*.rs"`. Globstar'lar bağımsız eğik çizgi segmentleri olmalıdır (`foo/**/bar`, `/Users/**`, `**/notes`).
 
 ### 2.3 `/` ile yol tarzı segmentasyon
@@ -310,7 +315,7 @@ in:/Users/demo/Projects ext:log dm:pastweek
 #  Scripts klasörü altında doğrudan shell betikleri
 parent:/Users/demo/Scripts *.sh
 
-#  Yolda “Application Support” olan her şey
+#  Kendi adında “Application Support” olan öğeler
 "Application Support"
 
 #  Regex ile belirli bir dosya adını eşleştir

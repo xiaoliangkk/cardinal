@@ -12,14 +12,17 @@ A linguagem de consulta do Cardinal é intencionalmente próxima da sintaxe do E
   - **Palavras / frases** (texto simples, strings entre aspas, curingas),
   - **Filtros** (`ext:`, `type:`, `dm:`, `content:`, …),
   - **Operadores booleanos** (`AND`, `OR`, `NOT` / `!`).
-- A correspondência ocorre sobre o **caminho completo** de cada arquivo indexado, não apenas o nome base.
+- A correspondência é orientada por **componentes de caminho**:
+  - Palavras, frases e curingas sem `/` correspondem ao nome próprio do arquivo ou pasta.
+  - Tokens separados por `/` correspondem a uma cadeia contígua de componentes de caminho e retornam o item que corresponde ao último segmento.
+  - Operadores booleanos combinam conjuntos de resultados para o mesmo item indexado; `foo bar` significa que um item deve corresponder aos dois tokens, não que seus ancestrais possam satisfazer um e seu nome base o outro.
 - A sensibilidade a maiúsculas/minúsculas é controlada pelo toggle da UI:
   - Quando **não diferencia maiúsculas/minúsculas**, o mecanismo coloca em minúsculas tanto a consulta quanto os candidatos para correspondência de nome/conteúdo.
   - Quando **diferencia maiúsculas/minúsculas**, o mecanismo compara os bytes como estão.
 
 Exemplos rápidos:
 ```text
-report draft                  # arquivos cujo caminho contém “report” e “draft”
+report draft                  # arquivos ou pastas cujo próprio nome contém “report” e “draft”
 ext:pdf briefing              # PDFs cujo nome contém “briefing”
 parent:/Users demo!.psd       # em /Users, excluir arquivos .psd
 regex:^Report.*2025$          # nomes que correspondem a uma regex
@@ -32,10 +35,11 @@ ext:png;jpg travel|vacation   # PNG ou JPG cujos nomes contêm “travel” ou �
 
 ### 2.1 Tokens simples e frases
 
-- Um token sem aspas é uma **correspondência por substring** no caminho:
-  - `demo` corresponde a `/Users/demo/Projects/cardinal.md`.
+- Um token sem aspas e sem `/` é uma **correspondência por substring** em um componente de caminho:
+  - `demo` corresponde à pasta `/Users/demo` e a `/Users/alice/demo-notes.md`.
+  - Ele não corresponde a `/Users/demo/Projects/cardinal.md` apenas porque um ancestral se chama `demo`; use `demo/**` para pesquisar descendentes.
 - Frases entre aspas duplas correspondem à sequência exata, incluindo espaços:
-  - `"Application Support"` corresponde a `/Library/Application Support/...`.
+  - `"Application Support"` corresponde a `/Library/Application Support`.
 - O toggle de sensibilidade a maiúsculas/minúsculas da UI se aplica a ambos.
 
 ### 2.2 Curingas (`*`, `?`, `**`)
@@ -48,6 +52,7 @@ ext:png;jpg travel|vacation   # PNG ou JPG cujos nomes contêm “travel” ou �
   - `report-??.txt` — `report-01.txt`, `report-AB.txt`, etc.
   - `a*b` — nomes que começam com `a` e terminam com `b`.
   - `src/**/Cargo.toml` — `Cargo.toml` em qualquer lugar abaixo de `src/`.
+- Como tokens simples, tokens curinga sem `/` correspondem a componentes de caminho. Uma cadeia curinga separada por barras como `src/**/Cargo.toml` retorna os itens `Cargo.toml` correspondentes, enquanto `src/**` retorna descendentes abaixo das pastas `src` correspondentes.
 - Se precisar de `*` ou `?` literal, coloque o token entre aspas: `"*.rs"`. Globstars devem ser segmentos de barra independentes (`foo/**/bar`, `/Users/**`, `**/notes`).
 
 ### 2.3 Segmentação em estilo de caminho com `/`
@@ -310,7 +315,7 @@ in:/Users/demo/Projects ext:log dm:pastweek
 #  Scripts de shell diretamente na pasta Scripts
 parent:/Users/demo/Scripts *.sh
 
-#  Tudo com “Application Support” no caminho
+#  Itens cujo próprio nome contém “Application Support”
 "Application Support"
 
 #  Corresponder a um nome de arquivo específico via regex
