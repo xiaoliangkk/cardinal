@@ -415,11 +415,7 @@ impl SearchCache {
                 .iter()
                 .find_map(|&child| {
                     let name = self.file_nodes[child].name();
-                    if path_segment_matches(name, segment, case_insensitive) {
-                        Some(child)
-                    } else {
-                        None
-                    }
+                    path_segment_matches(name, segment, case_insensitive).then_some(child)
                 })?;
             current = next;
         }
@@ -811,19 +807,11 @@ impl SearchCache {
 }
 
 fn path_segment_matches(name: &str, segment: &OsStr, case_insensitive: bool) -> bool {
-    if OsStr::new(name) == segment {
-        return true;
+    if case_insensitive {
+        segment.eq_ignore_ascii_case(name)
+    } else {
+        OsStr::new(name) == segment
     }
-
-    if !case_insensitive {
-        return false;
-    }
-
-    let Some(segment) = segment.to_str() else {
-        return false;
-    };
-
-    name.to_lowercase() == segment.to_lowercase()
 }
 
 /// Compute the minimal set of paths that must be rescanned for a batch of FsEvents.
