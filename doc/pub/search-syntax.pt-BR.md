@@ -17,8 +17,8 @@ A linguagem de consulta do Cardinal é intencionalmente próxima da sintaxe do E
   - Tokens separados por `/` correspondem a uma cadeia contígua de componentes de caminho e retornam o item que corresponde ao último segmento.
   - Operadores booleanos combinam conjuntos de resultados para o mesmo item indexado; `foo bar` significa que um item deve corresponder aos dois tokens, não que seus ancestrais possam satisfazer um e seu nome base o outro.
 - A sensibilidade a maiúsculas/minúsculas é controlada pelo toggle da UI:
-  - Quando **não diferencia maiúsculas/minúsculas**, o mecanismo coloca em minúsculas tanto a consulta quanto os candidatos para correspondência de nome/conteúdo.
-  - Quando **diferencia maiúsculas/minúsculas**, o mecanismo compara os bytes como estão.
+  - A correspondência de nome/caminho usa esse toggle diretamente.
+  - `content:` passa a mesma configuração ao Spotlight.
 
 Exemplos rápidos:
 ```text
@@ -255,13 +255,13 @@ O toggle de sensibilidade a maiúsculas/minúsculas da UI afeta a correspondênc
 
 ### 4.9 Filtro de conteúdo: `content:`
 
-`content:` varre o conteúdo do arquivo em busca de uma **substring simples**:
+`content:` busca uma **substring simples** no índice de conteúdo do macOS Spotlight:
 
-- Não há regex dentro de `content:` — é uma correspondência de substring por bytes.
-- A sensibilidade a maiúsculas/minúsculas segue o toggle da UI:
-  - No modo sem diferenciação, o mecanismo coloca em minúsculas tanto a agulha quanto os bytes analisados.
-  - No modo com diferenciação, os bytes são comparados como estão.
+- Não há regex dentro de `content:`; o valor é enviado ao Spotlight como conteúdo de texto.
+- A sensibilidade a maiúsculas/minúsculas segue o toggle da UI por meio do modificador de consulta do Spotlight.
 - Agulhas muito pequenas são permitidas, mas `""` (vazia) é rejeitada.
+- Valores contendo `*`, `'` ou `\` são rejeitados porque esses caracteres afetam a sintaxe de consulta do Spotlight.
+- Os resultados dependem da indexação do Spotlight e dos tipos de arquivo dos quais o Spotlight consegue extrair texto.
 
 Exemplos:
 ```text
@@ -271,7 +271,7 @@ in:/Users/demo/Projects content:deadline
 type:doc content:"Q4 budget"
 ```
 
-A correspondência de conteúdo é feita em streaming pelo arquivo; sequências multibyte podem atravessar limites de buffer.
+A correspondência de conteúdo não lê os corpos dos arquivos diretamente; usa apenas Spotlight.
 
 ### 4.10 Filtro de tags: `tag:` / `t:`
 

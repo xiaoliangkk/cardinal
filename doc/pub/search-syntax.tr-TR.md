@@ -17,8 +17,8 @@ Cardinal'ın sorgu dili Everything sözdizimine bilinçli olarak yakındır, anc
   - `/` ile ayrılmış belirteçler bitişik yol bileşenleri zinciriyle eşleşir ve son segmentle eşleşen öğeyi döndürür.
   - Mantıksal operatörler aynı dizinlenmiş öğe için sonuç kümelerini birleştirir; `foo bar`, bir öğenin iki belirteçle de eşleşmesi gerektiği anlamına gelir, atalarının birini ve taban adının diğerini karşılayabileceği anlamına gelmez.
 - Büyük/küçük harf duyarlılığı UI anahtarıyla kontrol edilir:
-  - **Büyük/küçük harfe duyarsız** modda, motor ad/içerik eşleşmeleri için hem sorguyu hem adayları küçültür.
-  - **Büyük/küçük harfe duyarlı** modda, motor baytları olduğu gibi karşılaştırır.
+  - Ad/yol eşleştirmesi bu anahtarı doğrudan kullanır.
+  - `content:` aynı ayarı Spotlight'a iletir.
 
 Hızlı örnekler:
 ```text
@@ -255,13 +255,13 @@ UI büyük/küçük harf anahtarı regex eşleşmesini etkiler.
 
 ### 4.9 İçerik filtresi: `content:`
 
-`content:`, dosya içeriklerini **düz bir alt dize** için tarar:
+`content:`, macOS Spotlight içerik dizininde **düz bir alt dize** arar:
 
-- `content:` içinde regex yoktur — bayt alt dize eşleşmesidir.
-- Büyük/küçük harf duyarlılığı UI anahtarını takip eder:
-  - Büyük/küçük harfe duyarsız modda, hem aranan dize hem taranan baytlar küçültülür.
-  - Büyük/küçük harfe duyarlı modda, baytlar olduğu gibi karşılaştırılır.
+- `content:` içinde regex yoktur; değer Spotlight'a metin içeriği olarak gönderilir.
+- Büyük/küçük harf duyarlılığı Spotlight sorgu değiştiricisiyle UI anahtarını takip eder.
 - Çok kısa dizeler kabul edilir, ancak `""` (boş) reddedilir.
+- `*`, `'` veya `\` içeren değerler reddedilir; bu karakterler Spotlight sorgu sözdizimini etkiler.
+- Sonuçlar Spotlight'ın indeksleme durumuna ve Spotlight'ın metin çıkarabildiği dosya türlerine bağlıdır.
 
 Örnekler:
 ```text
@@ -271,7 +271,7 @@ in:/Users/demo/Projects content:deadline
 type:doc content:"Q4 budget"
 ```
 
-İçerik eşleştirme dosya üzerinde akış halinde yapılır; çok baytlı diziler tampon sınırlarını aşabilir.
+İçerik eşleştirme dosya gövdelerini doğrudan okumaz; yalnızca Spotlight kullanır.
 
 ### 4.10 Etiket filtresi: `tag:` / `t:`
 

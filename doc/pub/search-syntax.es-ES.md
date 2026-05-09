@@ -17,8 +17,8 @@ El lenguaje de consulta de Cardinal es intencionalmente cercano a la sintaxis de
   - Los tokens separados por `/` coinciden con una cadena contigua de componentes de ruta y devuelven el elemento que coincide con el último segmento.
   - Los operadores booleanos combinan conjuntos de resultados para el mismo elemento indexado; `foo bar` significa que un mismo elemento debe coincidir con ambos tokens, no que sus ancestros puedan satisfacer uno y su nombre base el otro.
 - La sensibilidad a mayúsculas se controla con el interruptor de la UI:
-  - Cuando es **insensible a mayúsculas**, el motor convierte a minúsculas tanto la consulta como los candidatos para coincidencias de nombre/contenido.
-  - Cuando es **sensible a mayúsculas**, el motor compara los bytes tal cual.
+  - La coincidencia de nombre/ruta usa este interruptor directamente.
+  - `content:` pasa la misma opción a Spotlight.
 
 Ejemplos rápidos:
 ```text
@@ -255,13 +255,13 @@ El interruptor de sensibilidad a mayúsculas de la UI afecta la coincidencia de 
 
 ### 4.9 Filtro de contenido: `content:`
 
-`content:` escanea el contenido de los archivos buscando una **subcadena plana**:
+`content:` busca una **subcadena plana** en el índice de contenido de macOS Spotlight:
 
-- No hay regex dentro de `content:` — es una coincidencia de subcadena de bytes.
-- La sensibilidad a mayúsculas sigue el interruptor de la UI:
-  - En modo insensible a mayúsculas, el motor pasa a minúsculas tanto la aguja como los bytes escaneados.
-  - En modo sensible a mayúsculas, los bytes se comparan tal cual.
+- No hay regex dentro de `content:`; el valor se envía a Spotlight como contenido de texto.
+- La sensibilidad a mayúsculas sigue el interruptor de la UI mediante el modificador de consulta de Spotlight.
 - Se permiten agujas muy pequeñas, pero `""` (vacía) se rechaza.
+- Los valores que contienen `*`, `'` o `\` se rechazan porque esos caracteres afectan a la sintaxis de consulta de Spotlight.
+- Los resultados dependen de la indexación de Spotlight y de los tipos de archivo de los que Spotlight pueda extraer texto.
 
 Ejemplos:
 ```text
@@ -271,7 +271,7 @@ in:/Users/demo/Projects content:deadline
 type:doc content:"Q4 budget"
 ```
 
-La coincidencia de contenido se hace en modo streaming sobre el archivo; las secuencias multibyte pueden atravesar los límites del buffer.
+La coincidencia de contenido no lee los cuerpos de los archivos directamente; solo usa Spotlight.
 
 ### 4.10 Filtro de etiquetas: `tag:` / `t:`
 

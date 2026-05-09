@@ -7,7 +7,7 @@ members = [
   "namepool",
   "was",
   "fs-icon",
-  "file-tags",
+  "macos-metadata",
   "query-segmentation",
   "cardinal-syntax",
   "search-cancel",

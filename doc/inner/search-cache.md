@@ -93,7 +93,7 @@ Notable implementation details:
 - `parent:` intersects against the target folder's direct children.
 - `infolder:` intersects against the full descendant set.
 - `nosubfolders:` keeps the folder itself plus non-directory direct children only.
-- `content:` scans files in `64 KiB` windows and supports ASCII case-insensitive matching by lowercasing the read chunk.
+- `content:` uses Spotlight (`mdfind` / `kMDItemTextContent`) only, then maps returned paths back into the cache.
 - `tag:` uses per-file xattr reads for smaller base sets and switches to `mdfind` when the candidate set exceeds `TAG_FILTER_MDFIND_THRESHOLD` (`10000`).
 
 ## Metadata behavior

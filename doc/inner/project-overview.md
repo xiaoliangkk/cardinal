@@ -51,7 +51,7 @@ Background loop
 - `query-segmentation/`: slash-aware segment parsing for path-like matching.
 - `search-cancel/`: versioned cancellation tokens for searches and rescans.
 - `namepool/`: string interner used by `search-cache::NAME_POOL`.
-- `file-tags/`: Finder tag reading and Spotlight (`mdfind`) fallback for `tag:` filters.
+- `macos-metadata/`: Finder tag reading and Spotlight (`mdfind`) helpers for metadata-backed filters.
 - `slab-mmap/`: mmap-backed slab primitives used by persistence-oriented storage.
 - `lsf/` and `was/`: CLI helpers for `SearchCache` and FSEvents debugging.
 

@@ -17,8 +17,8 @@ Die Abfragesprache von Cardinal ist bewusst an die Syntax von Everything angeleh
   - Durch `/` getrennte Tokens matchen eine zusammenhängende Kette von Pfadkomponenten und geben das Element zurück, das zum letzten Segment passt.
   - Boolesche Operatoren kombinieren Ergebnismengen für dasselbe indexierte Element; `foo bar` bedeutet, dass ein Element zu beiden Tokens passen muss, nicht dass seine Vorfahren eines und sein Basisname das andere erfüllen dürfen.
 - Die Groß-/Kleinschreibung wird durch den UI-Schalter gesteuert:
-  - Bei **nicht case-sensitiv** konvertiert die Engine sowohl Abfrage als auch Kandidaten für Name-/Inhaltsabgleich in Kleinbuchstaben.
-  - Bei **case-sensitiv** vergleicht die Engine die Bytes unverändert.
+  - Name-/Pfadabgleich verwendet diesen Schalter direkt.
+  - `content:` gibt dieselbe Einstellung an Spotlight weiter.
 
 Schnelle Beispiele:
 ```text
@@ -255,13 +255,13 @@ Der UI-Schalter für Groß-/Kleinschreibung beeinflusst Regex-Matching.
 
 ### 4.9 Inhaltsfilter: `content:`
 
-`content:` durchsucht Dateiinhalte nach einer **einfachen Substring**:
+`content:` durchsucht den macOS-Spotlight-Inhaltsindex nach einem **einfachen Substring**:
 
-- Keine Regex innerhalb von `content:` — es ist ein Byte-Substring-Match.
-- Groß-/Kleinschreibung folgt dem UI-Schalter:
-  - Im nicht case-sensitiven Modus werden Suchbegriff und gescannte Bytes kleingeschrieben.
-  - Im case-sensitiven Modus werden Bytes unverändert verglichen.
+- Keine Regex innerhalb von `content:`; der Wert wird als Textinhalt an Spotlight gesendet.
+- Groß-/Kleinschreibung folgt über den Spotlight-Abfragemodifikator dem UI-Schalter.
 - Sehr kurze Suchbegriffe sind erlaubt, aber `""` (leer) wird abgelehnt.
+- Werte mit `*`, `'` oder `\` werden abgelehnt, weil diese Zeichen die Spotlight-Abfragesyntax beeinflussen.
+- Ergebnisse hängen davon ab, ob Spotlight indexiert hat und ob Spotlight Text aus dem Dateityp extrahieren kann.
 
 Beispiele:
 ```text
@@ -271,7 +271,7 @@ in:/Users/demo/Projects content:deadline
 type:doc content:"Q4 budget"
 ```
 
-Das Inhalts-Matching erfolgt streamend über die Datei; Multibyte-Sequenzen können Puffergrenzen überschreiten.
+Das Inhalts-Matching liest Dateiinhalte nicht direkt; es verwendet nur Spotlight.
 
 ### 4.10 Tag-Filter: `tag:` / `t:`
 

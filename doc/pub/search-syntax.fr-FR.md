@@ -17,8 +17,8 @@ Le langage de requête de Cardinal est volontairement proche de la syntaxe d’E
   - Les jetons séparés par `/` correspondent à une chaîne contiguë de composants de chemin et renvoient l’élément qui correspond au dernier segment.
   - Les opérateurs booléens combinent des ensembles de résultats pour le même élément indexé; `foo bar` signifie qu’un même élément doit correspondre aux deux jetons, et non que ses ancêtres peuvent satisfaire l’un et son nom de base l’autre.
 - La sensibilité à la casse est contrôlée par le basculeur de l’UI:
-  - En mode **insensible à la casse**, le moteur met en minuscules la requête et les candidats pour le matching nom/contenu.
-  - En mode **sensible à la casse**, le moteur compare les octets tels quels.
+  - La correspondance nom/chemin utilise directement ce basculeur.
+  - `content:` transmet le même réglage à Spotlight.
 
 Exemples rapides:
 ```text
@@ -255,13 +255,13 @@ Le basculeur de casse de l’UI affecte la correspondance regex.
 
 ### 4.9 Filtre de contenu: `content:`
 
-`content:` parcourt le contenu des fichiers à la recherche d’une **sous-chaîne simple**:
+`content:` recherche une **sous-chaîne simple** dans l’index de contenu macOS Spotlight:
 
-- Pas de regex dans `content:` — c’est une correspondance de sous-chaîne d’octets.
-- La sensibilité à la casse suit le basculeur de l’UI:
-  - En mode insensible, le moteur met en minuscules l’aiguille et les octets analysés.
-  - En mode sensible, les octets sont comparés tels quels.
+- Pas de regex dans `content:`; la valeur est envoyée à Spotlight comme contenu texte.
+- La sensibilité à la casse suit le basculeur de l’UI via le modificateur de requête Spotlight.
 - Les aiguilles très courtes sont autorisées, mais `""` (vide) est refusé.
+- Les valeurs contenant `*`, `'` ou `\` sont refusées, car ces caractères affectent la syntaxe de requête Spotlight.
+- Les résultats dépendent de l’indexation Spotlight et des types de fichiers dont Spotlight peut extraire du texte.
 
 Exemples:
 ```text
@@ -271,7 +271,7 @@ in:/Users/demo/Projects content:deadline
 type:doc content:"Q4 budget"
 ```
 
-La correspondance du contenu se fait en streaming sur le fichier; les séquences multioctets peuvent traverser les limites de buffer.
+La correspondance du contenu ne lit pas directement les corps de fichiers; elle utilise uniquement Spotlight.
 
 ### 4.10 Filtre de tags: `tag:` / `t:`
 

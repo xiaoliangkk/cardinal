@@ -6,18 +6,15 @@ use anyhow::{Result, anyhow, bail};
 use cardinal_syntax::{
     ArgumentKind, ComparisonOp, Expr, Filter, FilterArgument, FilterKind, RangeSeparator, Term,
 };
-use file_tags::{read_tags_from_path, search_tags_using_mdfind};
 use fswalk::NodeFileType;
 use hashbrown::HashSet;
 use jiff::{Timestamp, civil::Date, tz::TimeZone};
-use memchr::arch::all::rabinkarp;
+use macos_metadata::{read_tags_from_path, search_content_using_mdfind, search_tags_using_mdfind};
 use query_segmentation::query_segmentation;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use regex::RegexBuilder;
 use search_cancel::CancellationToken;
-use std::{collections::BTreeSet, fs::File, io::Read, path::Path};
-
-pub(crate) const CONTENT_BUFFER_BYTES: usize = 64 * 1024;
+use std::{collections::BTreeSet, path::Path};
 
 /// Threshold for switching from iterating file metadata to using Spotlight (mdfind).
 /// When the base set exceeds this size, Spotlight's indexed search is faster than
@@ -755,31 +752,38 @@ impl SearchCache {
         options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
-        let ghost;
-        let needle = if options.case_insensitive {
-            ghost = argument.raw.to_ascii_lowercase().into_bytes();
-            &ghost
-        } else {
-            argument.raw.as_bytes()
-        };
-        if needle.is_empty() {
+        if argument.raw.is_empty() {
             bail!("content: requires a value");
         }
-
-        let Some(nodes) = self.nodes_from_base(base, token) else {
+        if token.is_cancelled().is_none() {
             return Ok(None);
-        };
+        }
 
-        let matched_indices = nodes
+        let mut spotlight_indices = Vec::new();
+        for (i, path) in search_content_using_mdfind(&argument.raw, options.case_insensitive)?
             .into_iter()
-            .filter(|index| self.file_nodes[*index].file_type_hint() == NodeFileType::File)
-            .filter_map(|index| self.node_path(index).map(|path| (index, path)))
-            .par_bridge()
-            .filter_map(|(index, path)| {
-                self.node_content_matches(&path, needle, options.case_insensitive, token)?
-                    .then_some(index)
-            })
-            .collect();
+            .enumerate()
+        {
+            if token.is_cancelled_sparse(i).is_none() {
+                return Ok(None);
+            }
+            let Some(index) = self.node_index_for_path(&path) else {
+                continue;
+            };
+            if self.file_nodes[index].file_type_hint() == NodeFileType::File {
+                spotlight_indices.push(index);
+            }
+        }
+        dedup_indices_in_place(&mut spotlight_indices);
+
+        let matched_indices = match base {
+            Some(mut nodes) => {
+                let allowed = spotlight_indices.iter().copied().collect::<HashSet<_>>();
+                nodes.retain(|index| allowed.contains(index));
+                nodes
+            }
+            None => spotlight_indices,
+        };
 
         Ok(token.is_cancelled().map(|()| matched_indices))
     }
@@ -860,98 +864,6 @@ impl SearchCache {
         };
 
         Ok(token.is_cancelled().map(|()| matched_indices))
-    }
-
-    /// user need to ensure that needle is lowercased when case_insensitive is set
-    fn node_content_matches(
-        &self,
-        path: &Path,
-        needle: &[u8],
-        case_insensitive: bool,
-        token: CancellationToken,
-    ) -> Option<bool> {
-        token.is_cancelled()?;
-
-        let Ok(mut file) = File::open(path) else {
-            return Some(false);
-        };
-
-        if needle.len() == 1 {
-            let needle = needle[0];
-            let mut buffer = vec![0u8; CONTENT_BUFFER_BYTES];
-            if case_insensitive {
-                let lowercase_target = needle.to_ascii_lowercase();
-                let uppercase_target = needle.to_ascii_uppercase();
-                loop {
-                    token.is_cancelled()?;
-                    let read = match file.read(&mut buffer) {
-                        Ok(0) => break,
-                        Ok(count) => count,
-                        Err(_) => return Some(false),
-                    };
-                    if buffer[..read]
-                        .iter()
-                        .any(|&c| c == lowercase_target || c == uppercase_target)
-                    {
-                        return Some(true);
-                    }
-                }
-            } else {
-                loop {
-                    token.is_cancelled()?;
-                    let read = match file.read(&mut buffer) {
-                        Ok(0) => break,
-                        Ok(count) => count,
-                        Err(_) => return Some(false),
-                    };
-                    if buffer[..read].contains(&needle) {
-                        return Some(true);
-                    }
-                }
-            };
-
-            return Some(false);
-        }
-
-        // ensure needle is lowercased if case_insensitive is set
-        if case_insensitive {
-            debug_assert_eq!(needle, needle.to_ascii_lowercase());
-        }
-        let overlap = needle.len().saturating_sub(1);
-        let finder = rabinkarp::Finder::new(needle);
-        let mut buffer = vec![0u8; CONTENT_BUFFER_BYTES + overlap];
-        let mut carry_len = 0usize;
-
-        loop {
-            token.is_cancelled()?;
-
-            let Ok(read) = file.read(&mut buffer[carry_len..]) else {
-                return Some(false);
-            };
-            if read == 0 {
-                break;
-            }
-
-            let chunk_len = carry_len + read;
-            let chunk = &mut buffer[..chunk_len];
-
-            if case_insensitive {
-                chunk[carry_len..].make_ascii_lowercase();
-            }
-
-            if finder.find(chunk, needle).is_some() {
-                return Some(true);
-            }
-
-            let keep = overlap.min(chunk.len());
-            if keep > 0 {
-                let start = chunk.len().saturating_sub(keep);
-                chunk.copy_within(start.., 0);
-            }
-            carry_len = keep;
-        }
-
-        Some(false)
     }
 
     fn node_tags_match_any(

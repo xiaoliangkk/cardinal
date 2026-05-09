@@ -33,8 +33,24 @@ pub fn search_tags_using_mdfind(
         .map(|tag| format!("kMDItemUserTags == '*{tag}*'{modifier}"))
         .collect::<Vec<_>>()
         .join(" || ");
-    let output = Command::new("mdfind").arg(query).output()?;
+    search_using_mdfind(&query)
+}
 
+/// Searches indexed file content using the `mdfind` command-line tool.
+///
+/// This relies entirely on Spotlight's `kMDItemTextContent` index. It does not
+/// read file bodies directly, so coverage depends on Spotlight's importers and
+/// indexing state.
+pub fn search_content_using_mdfind(
+    needle: &str,
+    case_insensitive: bool,
+) -> io::Result<Vec<PathBuf>> {
+    let query = content_spotlight_query(needle, case_insensitive)?;
+    search_using_mdfind(&query)
+}
+
+fn search_using_mdfind(query: &str) -> io::Result<Vec<PathBuf>> {
+    let output = Command::new("mdfind").arg(query).output()?;
     if !output.status.success() {
         return Err(io::Error::other("mdfind command failed"));
     }
@@ -45,7 +61,29 @@ pub fn search_tags_using_mdfind(
     Ok(paths)
 }
 
+fn content_spotlight_query(needle: &str, case_insensitive: bool) -> io::Result<String> {
+    if needle.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "content filter requires a non-empty value",
+        ));
+    }
+    if let Some(forbidden_char) = spotlight_string_forbidden_chars(needle) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("content filter contains unsupported character '{forbidden_char}': {needle}"),
+        ));
+    }
+
+    let modifier = if case_insensitive { "c" } else { "" };
+    Ok(format!("kMDItemTextContent == '*{needle}*'{modifier}"))
+}
+
 fn tag_has_spotlight_forbidden_chars(tag: &str) -> Option<char> {
+    spotlight_string_forbidden_chars(tag)
+}
+
+fn spotlight_string_forbidden_chars(tag: &str) -> Option<char> {
     tag.chars().find(|c| matches!(c, '\'' | '\\' | '*'))
 }
 
@@ -129,6 +167,41 @@ mod tests {
         let bytes = plist_bytes(&[Value::String("Important\n0".into())]);
         let tags = parse_tags(&bytes, true);
         assert_eq!(tags, vec!["important".to_string()]);
+    }
+
+    #[test]
+    fn content_spotlight_query_uses_text_content_index() {
+        let query = content_spotlight_query("deadline", false).expect("valid query");
+        assert_eq!(query, "kMDItemTextContent == '*deadline*'");
+    }
+
+    #[test]
+    fn content_spotlight_query_adds_case_insensitive_modifier() {
+        let query = content_spotlight_query("Deadline", true).expect("valid query");
+        assert_eq!(query, "kMDItemTextContent == '*Deadline*'c");
+    }
+
+    #[test]
+    fn content_spotlight_query_rejects_empty_needle() {
+        let err = content_spotlight_query("", false).expect_err("empty needle should fail");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string()
+                .contains("content filter requires a non-empty value")
+        );
+    }
+
+    #[test]
+    fn content_spotlight_query_rejects_unsupported_spotlight_chars() {
+        for needle in ["foo*bar", "foo'bar", r"foo\bar"] {
+            let err =
+                content_spotlight_query(needle, false).expect_err("unsupported char should fail");
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+            assert!(
+                err.to_string()
+                    .contains("content filter contains unsupported character")
+            );
+        }
     }
 
     #[test]

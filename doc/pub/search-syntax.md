@@ -17,8 +17,8 @@ Cardinal’s query language is intentionally close to Everything’s syntax, whi
   - Slash-separated tokens match a contiguous chain of path components and return the item that matches the final segment.
   - Boolean operators combine result sets for the same indexed item; `foo bar` means one item must match both tokens, not that its ancestors may satisfy one token and its basename another.
 - Case sensitivity is controlled by the UI toggle:
-  - When **case-insensitive**, the engine lowercases both query and candidates for name/content matching.
-  - When **case-sensitive**, the engine compares bytes as‑is.
+  - Name/path matching uses the toggle directly.
+  - `content:` passes the same setting to Spotlight.
 
 Quick examples:
 ```text
@@ -257,13 +257,13 @@ The UI case-sensitivity toggle affects regex matching.
 
 ### 4.9 Content filter: `content:`
 
-`content:` scans file contents for a **plain substring**:
+`content:` searches the macOS Spotlight content index for a **plain substring**:
 
-- No regex inside `content:` — it is a byte substring match.
-- Case-sensitivity follows the UI toggle:
-  - In case-insensitive mode, the needle and scanned bytes are lowercased.
-  - In case-sensitive mode, bytes are compared as-is.
+- No regex inside `content:`; the value is sent to Spotlight as text content.
+- Case-sensitivity follows the UI toggle via Spotlight's query modifier.
 - Very small needles are allowed, but `""` (empty) is rejected.
+- Values containing `*`, `'`, or `\` are rejected because those characters affect Spotlight query syntax.
+- Results depend on Spotlight indexing and the file types Spotlight can extract text from.
 
 Examples:
 ```text
@@ -273,7 +273,7 @@ in:/Users/demo/Projects content:deadline
 type:doc content:"Q4 budget"
 ```
 
-Content matching is done in streaming fashion over the file; multi-byte sequences can span buffer boundaries.
+Content matching does not read file bodies directly; it uses Spotlight only.
 
 ### 4.10 Tag filter: `tag:` / `t:`
 

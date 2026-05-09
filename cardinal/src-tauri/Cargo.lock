@@ -1146,14 +1146,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "file-tags"
-version = "0.1.0"
-dependencies = [
- "plist",
- "xattr",
-]
-
-[[package]]
 name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2347,6 +2339,14 @@ checksum = "edf7710fbff50c24124331760978fb9086d6de6288dcdb38b25a97f8b1bdebbb"
 dependencies = [
  "core-foundation 0.9.4",
  "core-foundation-sys",
+]
+
+[[package]]
+name = "macos-metadata"
+version = "0.1.0"
+dependencies = [
+ "plist",
+ "xattr",
 ]
 
 [[package]]
@@ -3698,12 +3698,11 @@ dependencies = [
  "cardinal-syntax",
  "crossbeam-channel",
  "enumn",
- "file-tags",
  "fswalk",
  "hashbrown 0.16.1",
  "itertools",
  "jiff",
- "memchr",
+ "macos-metadata",
  "namepool",
  "postcard",
  "query-segmentation",

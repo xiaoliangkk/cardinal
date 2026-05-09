@@ -1441,27 +1441,26 @@ fn tag_filter_with_date_filter() {
 }
 
 #[test]
-fn tag_filter_list_with_content_search() {
-    let temp_dir = TempDir::new("tag_with_content").unwrap();
+fn tag_filter_list_with_invalid_content_search_reports_content_error() {
+    let temp_dir = TempDir::new("tag_with_content_error").unwrap();
     let dir = temp_dir.path();
 
-    let first = dir.join("first.txt");
-    fs::write(&first, b"hello world").unwrap();
-    write_tags(&first, &["Project"]);
-
-    let second = dir.join("second.txt");
-    fs::write(&second, b"goodbye world").unwrap();
-    write_tags(&second, &["Important"]);
+    let file = dir.join("first.txt");
+    fs::write(&file, b"hello world").unwrap();
+    write_tags(&file, &["Project"]);
 
     let mut cache = SearchCache::walk_fs(dir);
-    let indices = guard_indices(cache.search_with_options(
-        "tag:Project;Important content:hello",
-        SearchOptions::default(),
-        CancellationToken::noop(),
-    ));
-    assert_eq!(indices.len(), 1);
-    let nodes = cache.expand_file_nodes(&indices);
-    assert!(nodes[0].path.ends_with("first.txt"));
+    let err = cache
+        .search_with_options(
+            "tag:Project;Important content:hello*world",
+            SearchOptions::default(),
+            CancellationToken::noop(),
+        )
+        .expect_err("Spotlight content syntax should reject wildcard characters");
+    assert!(
+        err.to_string()
+            .contains("content filter contains unsupported character")
+    );
 }
 
 // Tests for mdfind threshold behavior
