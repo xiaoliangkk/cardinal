@@ -1,6 +1,8 @@
 use plist::Value;
 use std::{
+    ffi::OsString,
     io::{self, Cursor},
+    os::unix::ffi::OsStringExt,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -50,15 +52,32 @@ pub fn search_content_using_mdfind(
 }
 
 fn search_using_mdfind(query: &str) -> io::Result<Vec<PathBuf>> {
-    let output = Command::new("mdfind").arg(query).output()?;
+    let output = Command::new("mdfind").arg("-0").arg(query).output()?;
     if !output.status.success() {
-        return Err(io::Error::other("mdfind command failed"));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = stderr.trim();
+        let message = if detail.is_empty() {
+            format!("mdfind command failed with status {}", output.status)
+        } else {
+            format!(
+                "mdfind command failed with status {}: {detail}",
+                output.status
+            )
+        };
+        return Err(io::Error::other(message));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let paths = stdout.lines().map(PathBuf::from).collect();
+    let paths = parse_mdfind_nul_paths(&output.stdout);
 
     Ok(paths)
+}
+
+fn parse_mdfind_nul_paths(stdout: &[u8]) -> Vec<PathBuf> {
+    stdout
+        .split(|byte| *byte == b'\0')
+        .filter(|path| !path.is_empty())
+        .map(|path| PathBuf::from(OsString::from_vec(path.to_vec())))
+        .collect()
 }
 
 fn content_spotlight_query(needle: &str, case_insensitive: bool) -> io::Result<String> {
@@ -202,6 +221,24 @@ mod tests {
                     .contains("content filter contains unsupported character")
             );
         }
+    }
+
+    #[test]
+    fn parse_mdfind_nul_paths_preserves_newlines_in_paths() {
+        let paths = parse_mdfind_nul_paths(b"/tmp/alpha\nbeta\0/tmp/gamma\0");
+        assert_eq!(
+            paths,
+            vec![
+                PathBuf::from("/tmp/alpha\nbeta"),
+                PathBuf::from("/tmp/gamma")
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_mdfind_nul_paths_ignores_trailing_separator() {
+        let paths = parse_mdfind_nul_paths(b"/tmp/alpha\0");
+        assert_eq!(paths, vec![PathBuf::from("/tmp/alpha")]);
     }
 
     #[test]
