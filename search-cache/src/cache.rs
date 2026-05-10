@@ -397,6 +397,14 @@ impl SearchCache {
 
     /// Locate the slab index for an absolute path when it belongs to the watch root.
     pub fn node_index_for_path(&self, path: &Path) -> Option<SlabIndex> {
+        self.node_index_for_path_with_case(path, false)
+    }
+
+    pub(crate) fn node_index_for_path_with_case(
+        &self,
+        path: &Path,
+        case_insensitive: bool,
+    ) -> Option<SlabIndex> {
         let Ok(path) = path.strip_prefix("/") else {
             return None;
         };
@@ -407,11 +415,7 @@ impl SearchCache {
                 .iter()
                 .find_map(|&child| {
                     let name = self.file_nodes[child].name();
-                    if OsStr::new(name) == segment {
-                        Some(child)
-                    } else {
-                        None
-                    }
+                    path_segment_matches(name, segment, case_insensitive).then_some(child)
                 })?;
             current = next;
         }
@@ -799,6 +803,14 @@ impl SearchCache {
             self.update_last_event_id(max_event_id);
         }
         Ok(())
+    }
+}
+
+fn path_segment_matches(name: &str, segment: &OsStr, case_insensitive: bool) -> bool {
+    if case_insensitive {
+        segment.eq_ignore_ascii_case(name)
+    } else {
+        OsStr::new(name) == segment
     }
 }
 

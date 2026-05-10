@@ -153,7 +153,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:`  | Cualquier descendiente de la carpeta indicada (recursivo)         | `in:/Users/demo/Projects report draft`        |
 | `nosubfolders:`    | La carpeta en sí más los archivos hijos directos (sin subcarpetas) | `nosubfolders:/Users/demo/Projects ext:log`   |
 
-Estos filtros toman una ruta absoluta como argumento; un `~` inicial se expande al directorio de inicio del usuario.
+Estos filtros toman una ruta absoluta como argumento; un `~` inicial se expande al directorio de inicio del usuario. La búsqueda de la ruta sigue el interruptor de mayúsculas/minúsculas de la UI: cuando está desactivado, cada segmento de ruta puede coincidir sin distinguir mayúsculas.
 
 ### 4.4 Filtro de tipo: `type:`
 

@@ -155,7 +155,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:` | Any descendant of the given folder (recursive)          | `in:/Users/demo/Projects report draft`           |
 | `nosubfolders:` | Folder itself plus direct file children (no subfolders)  | `nosubfolders:/Users/demo/Projects ext:log`      |
 
-These filters take an absolute path as their argument; a leading `~` is expanded to the user home directory.
+These filters take an absolute path as their argument; a leading `~` is expanded to the user home directory. Path lookup follows the UI case-sensitivity toggle: when case-sensitive matching is off, each path segment can match regardless of case.
 
 ### 4.4 Type filter: `type:`
 

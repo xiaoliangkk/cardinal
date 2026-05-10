@@ -153,7 +153,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:` | Tout descendant du dossier indiqué (récursif)                     | `in:/Users/demo/Projects report draft`        |
 | `nosubfolders:`   | Le dossier lui‑même plus les fichiers enfants directs (sans sous‑dossiers) | `nosubfolders:/Users/demo/Projects ext:log`   |
 
-Ces filtres prennent un chemin absolu comme argument; un `~` initial est développé vers le répertoire personnel de l’utilisateur.
+Ces filtres prennent un chemin absolu comme argument; un `~` initial est développé vers le répertoire personnel de l’utilisateur. La résolution du chemin suit le réglage de casse de l’UI: lorsque le matching sensible à la casse est désactivé, chaque segment de chemin peut correspondre sans tenir compte de la casse.
 
 ### 4.4 Filtre de type: `type:`
 

@@ -153,7 +153,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:` | Qualquer descendente da pasta indicada (recursivo)              | `in:/Users/demo/Projects report draft`        |
 | `nosubfolders:`   | A pasta em si mais os arquivos filhos diretos (sem subpastas)    | `nosubfolders:/Users/demo/Projects ext:log`   |
 
-Esses filtros recebem um caminho absoluto como argumento; um `~` inicial é expandido para a pasta home do usuário.
+Esses filtros recebem um caminho absoluto como argumento; um `~` inicial é expandido para a pasta home do usuário. A busca do caminho segue o toggle de maiúsculas/minúsculas da UI: quando a correspondência sensível a maiúsculas está desativada, cada segmento do caminho pode corresponder sem diferenciar maiúsculas.
 
 ### 4.4 Filtro de tipo: `type:`
 

@@ -153,7 +153,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:` | Belirtilen klasörün herhangi bir alt öğesi (özyinelemeli)  | `in:/Users/demo/Projects report draft`      |
 | `nosubfolders:`   | Klasörün kendisi + doğrudan dosya çocukları (alt klasör yok) | `nosubfolders:/Users/demo/Projects ext:log` |
 
-Bu filtreler argüman olarak mutlak yol alır; baştaki `~` kullanıcı ana dizinine genişletilir.
+Bu filtreler argüman olarak mutlak yol alır; baştaki `~` kullanıcı ana dizinine genişletilir. Yol araması UI büyük/küçük harf anahtarını izler: büyük/küçük harfe duyarlı eşleşme kapalıyken her yol segmenti harf durumundan bağımsız eşleşebilir.
 
 ### 4.4 Tür filtresi: `type:`
 

@@ -391,21 +391,21 @@ impl SearchCache {
                     .argument
                     .as_ref()
                     .ok_or_else(|| anyhow!("parent: requires a folder path"))?;
-                self.evaluate_parent_filter(argument, base, token)
+                self.evaluate_parent_filter(argument, base, options, token)
             }
             FilterKind::InFolder => {
                 let argument = filter
                     .argument
                     .as_ref()
                     .ok_or_else(|| anyhow!("infolder: requires a folder path"))?;
-                self.evaluate_infolder_filter(argument, base, token)
+                self.evaluate_infolder_filter(argument, base, options, token)
             }
             FilterKind::NoSubfolders => {
                 let argument = filter
                     .argument
                     .as_ref()
                     .ok_or_else(|| anyhow!("nosubfolders: requires a folder path"))?;
-                self.evaluate_nosubfolders_filter(argument, base, token)
+                self.evaluate_nosubfolders_filter(argument, base, options, token)
             }
             FilterKind::Type => {
                 let argument = filter
@@ -527,9 +527,12 @@ impl SearchCache {
         &self,
         argument: &FilterArgument,
         base: Option<Vec<SlabIndex>>,
+        options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
-        let Some(target) = self.node_index_for_path(Path::new(&argument.raw)) else {
+        let Some(target) =
+            self.node_index_for_path_with_case(Path::new(&argument.raw), options.case_insensitive)
+        else {
             bail!(
                 "Parent filter {:?} is not found in file system",
                 argument.raw
@@ -550,9 +553,12 @@ impl SearchCache {
         &self,
         argument: &FilterArgument,
         base: Option<Vec<SlabIndex>>,
+        options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
-        let Some(target) = self.node_index_for_path(Path::new(&argument.raw)) else {
+        let Some(target) =
+            self.node_index_for_path_with_case(Path::new(&argument.raw), options.case_insensitive)
+        else {
             bail!(
                 "Parent filter {:?} is not found in file system",
                 argument.raw
@@ -575,9 +581,12 @@ impl SearchCache {
         &self,
         argument: &FilterArgument,
         base: Option<Vec<SlabIndex>>,
+        options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
-        let Some(target) = self.node_index_for_path(Path::new(&argument.raw)) else {
+        let Some(target) =
+            self.node_index_for_path_with_case(Path::new(&argument.raw), options.case_insensitive)
+        else {
             bail!(
                 "nosubfolders filter {:?} is not found in file system",
                 argument.raw

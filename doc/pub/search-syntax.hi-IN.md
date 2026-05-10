@@ -153,7 +153,7 @@ ext:png;jpg travel|vacation
 | `infolder:`/`in:` | निर्दिष्ट फ़ोल्डर का कोई भी वंशज (रिकर्सिव)               | `in:/Users/demo/Projects report draft`      |
 | `nosubfolders:`   | फ़ोल्डर स्वयं + सीधे फ़ाइल बच्चे (उप‑फ़ोल्डर नहीं)        | `nosubfolders:/Users/demo/Projects ext:log` |
 
-ये फ़िल्टर आर्ग्युमेंट के रूप में absolute path लेते हैं; अग्रणी `~` यूज़र होम डायरेक्टरी में फैल जाता है।
+ये फ़िल्टर आर्ग्युमेंट के रूप में absolute path लेते हैं; अग्रणी `~` यूज़र होम डायरेक्टरी में फैल जाता है। पाथ lookup UI के केस टॉगल का पालन करता है: case-sensitive matching बंद होने पर हर पाथ सेगमेंट केस की परवाह किए बिना मैच कर सकता है।
 
 ### 4.4 टाइप फ़िल्टर: `type:`
 
