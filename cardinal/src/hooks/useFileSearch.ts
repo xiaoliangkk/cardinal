@@ -1,4 +1,4 @@
-import { useReducer, useRef, useCallback, useEffect } from 'react';
+import { useReducer, useRef, useCallback, useEffect, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { SEARCH_DEBOUNCE_MS } from '../constants';
@@ -18,6 +18,7 @@ type SearchState = {
   processedEvents: number;
   rescanErrors: number;
   currentQuery: string;
+  currentDirectoryQuery: string;
   highlightTerms: string[];
   showLoadingUI: boolean;
   initialFetchCompleted: boolean;
@@ -29,12 +30,16 @@ type SearchState = {
 
 type SearchParams = {
   query: string;
+  directoryQuery: string;
+  directoryScopeOpen: boolean;
   caseSensitive: boolean;
 };
 
+export const DIRECTORY_SCOPE_OPEN_STORAGE_KEY = 'cardinal.search.directoryScopeOpen';
+
 type QueueSearchOptions = {
   immediate?: boolean;
-  onSearchCommitted?: (query: string) => void;
+  onSearchCommitted?: () => void;
 };
 
 type SearchAction =
@@ -49,6 +54,7 @@ type SearchAction =
       payload: {
         results: SlabIndex[];
         query: string;
+        directoryQuery: string;
         duration: number;
         count: number;
         highlightTerms: string[];
@@ -71,6 +77,7 @@ const initialSearchState: SearchState = {
   processedEvents: 0,
   rescanErrors: 0,
   currentQuery: '',
+  currentDirectoryQuery: '',
   highlightTerms: [],
   showLoadingUI: false,
   initialFetchCompleted: false,
@@ -82,7 +89,31 @@ const initialSearchState: SearchState = {
 
 const initialSearchParams: SearchParams = {
   query: '',
+  directoryQuery: '',
+  directoryScopeOpen: false,
   caseSensitive: false,
+};
+
+const readStoredDirectoryScopeOpen = (): boolean => {
+  if (typeof window === 'undefined') {
+    return initialSearchParams.directoryScopeOpen;
+  }
+  try {
+    return window.localStorage.getItem(DIRECTORY_SCOPE_OPEN_STORAGE_KEY) === 'true';
+  } catch {
+    return initialSearchParams.directoryScopeOpen;
+  }
+};
+
+const persistDirectoryScopeOpen = (open: boolean): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    window.localStorage.setItem(DIRECTORY_SCOPE_OPEN_STORAGE_KEY, open ? 'true' : 'false');
+  } catch {
+    // Ignore storage failures.
+  }
 };
 
 const cancelTimer = (timerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>) => {
@@ -119,6 +150,7 @@ function reducer(state: SearchState, action: SearchAction): SearchState {
         results: action.payload.results,
         resultsVersion: state.resultsVersion + 1,
         currentQuery: action.payload.query,
+        currentDirectoryQuery: action.payload.directoryQuery,
         highlightTerms: action.payload.highlightTerms,
         showLoadingUI: false,
         initialFetchCompleted: true,
@@ -153,23 +185,33 @@ function reducer(state: SearchState, action: SearchAction): SearchState {
 }
 
 const searchParamsReducer = (prev: SearchParams, patch: Partial<SearchParams>): SearchParams => {
-  const next = { ...prev, ...patch };
-  return next;
+  return { ...prev, ...patch };
 };
+
+const searchParamOrNull = (value: string): string | null => (value.length > 0 ? value : null);
+
+const activeDirectoryQuery = ({ directoryQuery, directoryScopeOpen }: SearchParams): string =>
+  directoryScopeOpen ? directoryQuery : '';
 
 type UseFileSearchResult = {
   state: SearchState;
   searchParams: SearchParams;
   updateSearchParams: (patch: Partial<SearchParams>) => void;
   queueSearch: (query: string, options?: QueueSearchOptions) => void;
+  queueDirectorySearch: (directoryQuery: string, options?: QueueSearchOptions) => void;
+  queueDirectoryScopeOpen: (directoryScopeOpen: boolean) => void;
   handleStatusUpdate: (scannedFiles: number, processedEvents: number, rescanErrors: number) => void;
   setLifecycleState: (status: AppLifecycleStatus) => void;
   requestRescan: () => Promise<void>;
 };
 
 export function useFileSearch(): UseFileSearchResult {
+  const [initialSearchParamsForHook] = useState<SearchParams>(() => ({
+    ...initialSearchParams,
+    directoryScopeOpen: readStoredDirectoryScopeOpen(),
+  }));
   const [state, dispatch] = useReducer(reducer, initialSearchState);
-  const latestSearchRef = useRef<SearchParams>(initialSearchParams);
+  const latestSearchRef = useRef<SearchParams>(initialSearchParamsForHook);
   // `search-cancellation` maintains an atomic counter
   // and will auto-increment for each search request
   // so this only serves as a defence-in-depth
@@ -178,10 +220,16 @@ export function useFileSearch(): UseFileSearchResult {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [searchParams, patchSearchParams] = useReducer(searchParamsReducer, initialSearchParams);
+  const [searchParams, patchSearchParams] = useReducer(
+    searchParamsReducer,
+    initialSearchParamsForHook,
+  );
 
   const updateSearchParams = useCallback((patch: Partial<SearchParams>) => {
     latestSearchRef.current = { ...latestSearchRef.current, ...patch };
+    if (patch.directoryScopeOpen !== undefined) {
+      persistDirectoryScopeOpen(patch.directoryScopeOpen);
+    }
     patchSearchParams(patch);
   }, []);
 
@@ -231,6 +279,7 @@ export function useFileSearch(): UseFileSearchResult {
     searchVersionRef.current = requestVersion;
 
     const { query, caseSensitive } = nextSearch;
+    const directoryQuery = activeDirectoryQuery(nextSearch);
     const startTs = performance.now();
     const isInitial = !hasInitialSearchRunRef.current;
 
@@ -246,7 +295,8 @@ export function useFileSearch(): UseFileSearchResult {
 
     try {
       const rawResults = await invoke<SearchResponsePayload>('search', {
-        query,
+        query: searchParamOrNull(query),
+        directoryQuery: searchParamOrNull(directoryQuery),
         options: {
           caseInsensitive: !caseSensitive,
         },
@@ -277,6 +327,7 @@ export function useFileSearch(): UseFileSearchResult {
         payload: {
           results: searchResults,
           query,
+          directoryQuery,
           duration,
           count: searchResults.length,
           highlightTerms,
@@ -309,22 +360,43 @@ export function useFileSearch(): UseFileSearchResult {
     }
   }, []);
 
-  const queueSearch = useCallback(
-    (query: string, options?: QueueSearchOptions) => {
-      updateSearchParams({ query });
+  const queueSearchParams = useCallback(
+    (patch: Partial<SearchParams>, options?: QueueSearchOptions) => {
+      updateSearchParams(patch);
       cancelPendingSearches();
       if (options?.immediate) {
-        options.onSearchCommitted?.(query);
-        void handleSearch({ query });
+        options.onSearchCommitted?.();
+        void handleSearch(patch);
         return;
       }
 
       debounceTimerRef.current = setTimeout(() => {
-        options?.onSearchCommitted?.(query);
-        handleSearch({ query });
+        options?.onSearchCommitted?.();
+        handleSearch(patch);
       }, SEARCH_DEBOUNCE_MS);
     },
     [cancelPendingSearches, handleSearch, updateSearchParams],
+  );
+
+  const queueSearch = useCallback(
+    (query: string, options?: QueueSearchOptions) => {
+      queueSearchParams({ query }, options);
+    },
+    [queueSearchParams],
+  );
+
+  const queueDirectorySearch = useCallback(
+    (directoryQuery: string, options?: QueueSearchOptions) => {
+      queueSearchParams({ directoryQuery }, options);
+    },
+    [queueSearchParams],
+  );
+
+  const queueDirectoryScopeOpen = useCallback(
+    (directoryScopeOpen: boolean) => {
+      queueSearchParams({ directoryScopeOpen }, { immediate: true });
+    },
+    [queueSearchParams],
   );
 
   useEffect(() => cancelPendingSearches, [cancelPendingSearches]);
@@ -335,7 +407,8 @@ export function useFileSearch(): UseFileSearchResult {
       return;
     }
 
-    if (!latestSearchRef.current.query) {
+    const nextSearch = latestSearchRef.current;
+    if (!nextSearch.query && !activeDirectoryQuery(nextSearch)) {
       return;
     }
 
@@ -351,6 +424,8 @@ export function useFileSearch(): UseFileSearchResult {
     searchParams,
     updateSearchParams,
     queueSearch,
+    queueDirectorySearch,
+    queueDirectoryScopeOpen,
     handleStatusUpdate,
     setLifecycleState,
     requestRescan,

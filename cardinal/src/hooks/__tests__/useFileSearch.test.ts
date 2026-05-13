@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import type { SlabIndex } from '../../types/slab';
-import { useFileSearch } from '../useFileSearch';
+import { DIRECTORY_SCOPE_OPEN_STORAGE_KEY, useFileSearch } from '../useFileSearch';
 import { SearchStatusCode } from '../../types/ipc';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -11,31 +11,59 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 const mockedInvoke = vi.mocked(invoke);
 
+const searchResponse = (results: SlabIndex[] = []) => ({
+  results,
+  highlights: [],
+  statusCode: SearchStatusCode.OK,
+});
+
+const mockSearchSuccess = (results: SlabIndex[] = []) => {
+  mockedInvoke.mockImplementation((command: string) => {
+    if (command === 'get_app_status') {
+      return Promise.resolve('Ready');
+    }
+    if (command === 'search') {
+      return Promise.resolve(searchResponse(results));
+    }
+    return Promise.resolve(null);
+  });
+};
+
+const mockSearchCancelled = () => {
+  mockedInvoke.mockImplementation((command: string) => {
+    if (command === 'get_app_status') {
+      return Promise.resolve('Ready');
+    }
+    if (command === 'search') {
+      return Promise.resolve({
+        results: [],
+        highlights: [],
+        statusCode: SearchStatusCode.CANCELLED,
+      });
+    }
+    return Promise.resolve(null);
+  });
+};
+
+const renderReadySearchHook = async () => {
+  const rendered = renderHook(() => useFileSearch());
+  await waitFor(() => expect(rendered.result.current.state.initialFetchCompleted).toBe(true));
+  return rendered;
+};
+
 describe('useFileSearch', () => {
+  beforeEach(() => {
+    window.localStorage.setItem(DIRECTORY_SCOPE_OPEN_STORAGE_KEY, 'false');
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
 
   it('reuses backend results array without copying', async () => {
     const backendResults = [1, 2, 3] as SlabIndex[];
-
-    mockedInvoke.mockImplementation((command: string) => {
-      if (command === 'get_app_status') {
-        return Promise.resolve('Ready');
-      }
-      if (command === 'search') {
-        return Promise.resolve({
-          results: backendResults,
-          highlights: [],
-          statusCode: SearchStatusCode.OK,
-        });
-      }
-      return Promise.resolve(null);
-    });
-
-    const { result } = renderHook(() => useFileSearch());
-
-    await waitFor(() => expect(result.current.state.initialFetchCompleted).toBe(true));
+    mockSearchSuccess(backendResults);
+    const { result } = await renderReadySearchHook();
 
     expect(result.current.state.results).toBe(backendResults);
     expect(result.current.state.resultCount).toBe(backendResults.length);
@@ -43,41 +71,12 @@ describe('useFileSearch', () => {
 
   it('ignores results when backend returns CANCELLED status', async () => {
     const initialResults = [1, 2, 3] as SlabIndex[];
-
-    mockedInvoke.mockImplementation((command: string) => {
-      if (command === 'get_app_status') {
-        return Promise.resolve('Ready');
-      }
-      if (command === 'search') {
-        // First call (initial search) returns results
-        return Promise.resolve({
-          results: initialResults,
-          highlights: [],
-          statusCode: SearchStatusCode.OK,
-        });
-      }
-      return Promise.resolve(null);
-    });
-
-    const { result } = renderHook(() => useFileSearch());
-
-    // Wait for initial search to complete
-    await waitFor(() => expect(result.current.state.initialFetchCompleted).toBe(true));
+    mockSearchSuccess(initialResults);
+    const { result } = await renderReadySearchHook();
     expect(result.current.state.results).toBe(initialResults);
 
-    // Mock search to return CANCELLED status for the next call
-    mockedInvoke.mockImplementation((command: string) => {
-      if (command === 'search') {
-        return Promise.resolve({
-          results: [],
-          highlights: [],
-          statusCode: SearchStatusCode.CANCELLED,
-        });
-      }
-      return Promise.resolve('Ready');
-    });
+    mockSearchCancelled();
 
-    // Trigger a new search
     act(() => {
       result.current.queueSearch('new query', { immediate: true });
     });
@@ -88,6 +87,142 @@ describe('useFileSearch', () => {
       expect(result.current.state.currentQuery).toBe(''); // Query doesn't update on cancelled search
       expect(result.current.state.showLoadingUI).toBe(false);
       expect(result.current.state.initialFetchCompleted).toBe(true);
+    });
+  });
+
+  it('does not send directory scope while the scope input is inactive', async () => {
+    mockSearchSuccess();
+    const { result } = await renderReadySearchHook();
+    mockedInvoke.mockClear();
+
+    act(() => {
+      result.current.queueDirectorySearch('Projects', { immediate: true });
+    });
+
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenCalledWith('search', {
+        query: null,
+        directoryQuery: null,
+        options: {
+          caseInsensitive: true,
+        },
+      });
+    });
+  });
+
+  it('re-runs search when directory scope is toggled and controls the directory payload', async () => {
+    mockSearchSuccess();
+    const { result } = await renderReadySearchHook();
+
+    act(() => {
+      result.current.queueDirectorySearch('Projects', { immediate: true });
+    });
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenLastCalledWith('search', {
+        query: null,
+        directoryQuery: null,
+        options: {
+          caseInsensitive: true,
+        },
+      });
+    });
+
+    mockedInvoke.mockClear();
+    act(() => {
+      result.current.queueDirectoryScopeOpen(true);
+    });
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenLastCalledWith('search', {
+        query: null,
+        directoryQuery: 'Projects',
+        options: {
+          caseInsensitive: true,
+        },
+      });
+      expect(result.current.state.currentDirectoryQuery).toBe('Projects');
+      expect(window.localStorage.getItem(DIRECTORY_SCOPE_OPEN_STORAGE_KEY)).toBe('true');
+    });
+
+    mockedInvoke.mockClear();
+    act(() => {
+      result.current.queueDirectoryScopeOpen(false);
+    });
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenLastCalledWith('search', {
+        query: null,
+        directoryQuery: null,
+        options: {
+          caseInsensitive: true,
+        },
+      });
+      expect(result.current.state.currentDirectoryQuery).toBe('');
+      expect(window.localStorage.getItem(DIRECTORY_SCOPE_OPEN_STORAGE_KEY)).toBe('false');
+    });
+  });
+
+  it('hydrates persisted directory scope open state', async () => {
+    window.localStorage.setItem(DIRECTORY_SCOPE_OPEN_STORAGE_KEY, 'true');
+    mockSearchSuccess();
+    const { result } = await renderReadySearchHook();
+
+    expect(result.current.searchParams.directoryScopeOpen).toBe(true);
+
+    act(() => {
+      result.current.queueDirectorySearch('Projects', { immediate: true });
+    });
+
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenLastCalledWith('search', {
+        query: null,
+        directoryQuery: 'Projects',
+        options: {
+          caseInsensitive: true,
+        },
+      });
+    });
+  });
+
+  it('passes whitespace directory scope through when the scope is active', async () => {
+    mockSearchSuccess();
+    const { result } = await renderReadySearchHook();
+
+    act(() => {
+      result.current.queueDirectorySearch('   ', { immediate: true });
+    });
+    act(() => {
+      result.current.queueDirectoryScopeOpen(true);
+    });
+
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenLastCalledWith('search', {
+        query: null,
+        directoryQuery: '   ',
+        options: {
+          caseInsensitive: true,
+        },
+      });
+      expect(result.current.state.currentDirectoryQuery).toBe('   ');
+    });
+  });
+
+  it('passes whitespace query through to search', async () => {
+    mockSearchSuccess();
+    const { result } = await renderReadySearchHook();
+    mockedInvoke.mockClear();
+
+    act(() => {
+      result.current.queueSearch('   ', { immediate: true });
+    });
+
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenLastCalledWith('search', {
+        query: '   ',
+        directoryQuery: null,
+        options: {
+          caseInsensitive: true,
+        },
+      });
+      expect(result.current.state.currentQuery).toBe('   ');
     });
   });
 });

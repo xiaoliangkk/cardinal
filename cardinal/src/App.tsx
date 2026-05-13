@@ -37,6 +37,8 @@ function App() {
     searchParams,
     updateSearchParams,
     queueSearch,
+    queueDirectorySearch,
+    queueDirectoryScopeOpen,
     handleStatusUpdate,
     setLifecycleState,
     requestRescan,
@@ -48,6 +50,7 @@ function App() {
     processedEvents,
     rescanErrors,
     currentQuery,
+    currentDirectoryQuery,
     highlightTerms,
     showLoadingUI,
     initialFetchCompleted,
@@ -60,10 +63,10 @@ function App() {
   const eventsPanelRef = useRef<FSEventsPanelHandle | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const virtualListRef = useRef<VirtualListHandle | null>(null);
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { colWidths, onResizeStart, autoFitColumns } = useColumnResize();
-  const { caseSensitive } = searchParams;
+  const { caseSensitive, directoryQuery, directoryScopeOpen } = searchParams;
   const { eventColWidths, onEventResizeStart, autoFitEventColumns } = useEventColumnWidths();
   const { t, i18n } = useTranslation();
   // `resultsVersion` tracks raw backend search result-set changes.
@@ -112,12 +115,17 @@ function App() {
     setEventFilterQuery,
     onTabChange,
     searchInputValue,
+    directoryInputValue,
     onQueryChange,
+    onDirectoryQueryChange,
+    onDirectoryInputKeyDown,
     onSearchInputKeyDown,
     submitFilesQuery,
   } = useFilesTabState({
     searchQuery: searchParams.query,
+    directoryQuery,
     queueSearch,
+    queueDirectorySearch,
     onNavigateFromSearchToResults: navigateFromSearchToResults,
   });
   const { filteredEvents } = useRecentFSEvents({
@@ -242,6 +250,10 @@ function App() {
     [updateSearchParams],
   );
 
+  const toggleDirectoryScope = useCallback(() => {
+    queueDirectoryScopeOpen(!directoryScopeOpen);
+  }, [directoryScopeOpen, queueDirectoryScopeOpen]);
+
   const handleHorizontalSync = useCallback((scrollLeft: number) => {
     // VirtualList drives the scroll position; mirror it onto the sticky header for alignment.
     if (headerRef.current) {
@@ -342,8 +354,10 @@ function App() {
     ? t('app.fullDiskAccess.status.checking')
     : t('app.fullDiskAccess.status.disabled');
   const caseSensitiveLabel = t('search.options.caseSensitive');
+  const directoryScopeLabel = t('search.options.directoryScope');
   const searchPlaceholder =
     activeTab === 'files' ? t('search.placeholder.files') : t('search.placeholder.events');
+  const directorySearchPlaceholder = t('search.placeholder.directory');
   const permissionSteps = [
     t('app.fullDiskAccess.steps.one'),
     t('app.fullDiskAccess.steps.two'),
@@ -363,6 +377,14 @@ function App() {
           value={searchInputValue}
           onChange={onQueryChange}
           onKeyDown={onSearchInputKeyDown}
+          directoryScopeEnabled={activeTab === 'files'}
+          directoryScopeOpen={directoryScopeOpen}
+          directoryScopeLabel={directoryScopeLabel}
+          directoryPlaceholder={directorySearchPlaceholder}
+          directoryValue={directoryInputValue}
+          onToggleDirectoryScope={toggleDirectoryScope}
+          onDirectoryChange={onDirectoryQueryChange}
+          onDirectoryKeyDown={onDirectoryInputKeyDown}
           caseSensitive={caseSensitive}
           onToggleCaseSensitive={onToggleCaseSensitive}
           caseSensitiveLabel={caseSensitiveLabel}
@@ -391,6 +413,7 @@ function App() {
               displayState={displayState}
               searchErrorMessage={searchErrorMessage}
               currentQuery={currentQuery}
+              currentDirectoryQuery={currentDirectoryQuery}
               virtualListRef={virtualListRef}
               results={displayedResults}
               dataResultsVersion={resultsVersion}

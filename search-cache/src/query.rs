@@ -28,29 +28,32 @@ impl SearchCache {
     pub(crate) fn evaluate_expr(
         &mut self,
         expr: &Expr,
+        base: Option<&Vec<SlabIndex>>,
         options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
         match expr {
-            Expr::Empty => Ok(self.search_empty(token)),
-            Expr::Term(term) => self.evaluate_term(term, options, token),
-            Expr::Not(inner) => self.evaluate_not(inner, None, options, token),
-            Expr::And(parts) => self.evaluate_and(parts, options, token),
-            Expr::Or(parts) => self.evaluate_or(parts, options, token),
+            Expr::Empty => Ok(self.nodes_from_base_ref(base, token)),
+            Expr::Term(term) => self.evaluate_term(term, base, options, token),
+            Expr::Not(inner) => self.evaluate_not(inner, base, options, token),
+            Expr::And(parts) => self.evaluate_and(parts, base.cloned(), options, token),
+            Expr::Or(parts) => self.evaluate_or(parts, base, options, token),
         }
     }
 
     fn evaluate_and(
         &mut self,
         parts: &[Expr],
+        base: Option<Vec<SlabIndex>>,
         options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
-        let mut current: Option<Vec<SlabIndex>> = None;
+        let mut current: Option<Vec<SlabIndex>> = base;
         for part in parts {
             match part {
                 Expr::Not(inner) => {
-                    let Some(x) = self.evaluate_not(inner, current, options, token)? else {
+                    let Some(x) = self.evaluate_not(inner, current.as_ref(), options, token)?
+                    else {
                         return Ok(None);
                     };
                     current = Some(x);
@@ -63,18 +66,11 @@ impl SearchCache {
                     current = Some(nodes);
                 }
                 _ => {
-                    let Some(nodes) = self.evaluate_expr(part, options, token)? else {
+                    let Some(nodes) = self.evaluate_expr(part, current.as_ref(), options, token)?
+                    else {
                         return Ok(None);
                     };
-                    current = Some(match current {
-                        Some(mut existing) => {
-                            if intersect_in_place(&mut existing, &nodes, token).is_none() {
-                                return Ok(None);
-                            }
-                            existing
-                        }
-                        None => nodes,
-                    });
+                    current = Some(nodes);
                 }
             }
         }
@@ -84,17 +80,24 @@ impl SearchCache {
     fn evaluate_or(
         &mut self,
         parts: &[Expr],
+        base: Option<&Vec<SlabIndex>>,
         options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
         let mut result: Vec<SlabIndex> = Vec::new();
+        let mut seen: HashSet<SlabIndex> = HashSet::new();
         for part in parts {
-            let candidate = self.evaluate_expr(part, options, token)?;
+            let candidate = self.evaluate_expr(part, base, options, token)?;
             let Some(nodes) = candidate else {
                 return Ok(None);
             };
-            if union_in_place(&mut result, &nodes, token).is_none() {
+            if token.is_cancelled().is_none() {
                 return Ok(None);
+            }
+            for index in nodes {
+                if seen.insert(index) {
+                    result.push(index);
+                }
             }
         }
         Ok(Some(result))
@@ -103,19 +106,14 @@ impl SearchCache {
     fn evaluate_not(
         &mut self,
         inner: &Expr,
-        base: Option<Vec<SlabIndex>>,
+        base: Option<&Vec<SlabIndex>>,
         options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
-        let mut universe = if let Some(current) = base {
-            current
-        } else {
-            match self.search_empty(token) {
-                Some(nodes) => nodes,
-                None => return Ok(None),
-            }
+        let Some(mut universe) = self.nodes_from_base_ref(base, token) else {
+            return Ok(None);
         };
-        if let Some(negated) = self.evaluate_expr(inner, options, token)? {
+        if let Some(negated) = self.evaluate_expr(inner, base, options, token)? {
             if difference_in_place(&mut universe, &negated, token).is_none() {
                 return Ok(None);
             }
@@ -128,14 +126,37 @@ impl SearchCache {
     fn evaluate_term(
         &mut self,
         term: &Term,
+        base: Option<&Vec<SlabIndex>>,
         options: SearchOptions,
         token: CancellationToken,
     ) -> Result<Option<Vec<SlabIndex>>> {
-        match term {
-            Term::Word(text) => self.evaluate_phrase(text, options, token),
-            Term::Regex(pattern) => self.evaluate_regex(pattern, options, token),
-            Term::Filter(filter) => self.evaluate_filter(filter, None, options, token),
+        if base.is_some_and(Vec::is_empty) {
+            return Ok(Some(Vec::new()));
         }
+
+        match term {
+            Term::Word(text) => self.evaluate_phrase_with_base(text, base, options, token),
+            Term::Regex(pattern) => self.evaluate_regex_with_base(pattern, base, options, token),
+            Term::Filter(filter) => self.evaluate_filter(filter, base.cloned(), options, token),
+        }
+    }
+
+    fn evaluate_phrase_with_base(
+        &self,
+        text: &str,
+        base: Option<&Vec<SlabIndex>>,
+        options: SearchOptions,
+        token: CancellationToken,
+    ) -> Result<Option<Vec<SlabIndex>>> {
+        let Some(mut nodes) = self.evaluate_phrase(text, options, token)? else {
+            return Ok(None);
+        };
+        if let Some(base) = base
+            && intersect_in_place(&mut nodes, base, token).is_none()
+        {
+            return Ok(None);
+        }
+        Ok(Some(nodes))
     }
 
     fn evaluate_phrase(
@@ -355,6 +376,24 @@ impl SearchCache {
             .map_err(|err| anyhow!("Invalid regex pattern: {err}"))?;
         let matcher = SegmentMatcher::Concrete(SegmentMatcherConcrete::Regex { regex });
         Ok(self.execute_matchers(std::slice::from_ref(&matcher), token))
+    }
+
+    fn evaluate_regex_with_base(
+        &self,
+        pattern: &str,
+        base: Option<&Vec<SlabIndex>>,
+        options: SearchOptions,
+        token: CancellationToken,
+    ) -> Result<Option<Vec<SlabIndex>>> {
+        let Some(mut nodes) = self.evaluate_regex(pattern, options, token)? else {
+            return Ok(None);
+        };
+        if let Some(base) = base
+            && intersect_in_place(&mut nodes, base, token).is_none()
+        {
+            return Ok(None);
+        }
+        Ok(Some(nodes))
     }
 
     fn evaluate_filter(
@@ -596,13 +635,7 @@ impl SearchCache {
             bail!("nosubfolders path {:?} is not a folder", argument.raw);
         }
 
-        let nodes = if let Some(nodes) = base
-            && nodes.len() <= self.file_nodes[target].children.len()
-        {
-            nodes
-        } else {
-            self.file_nodes[target].children.to_vec()
-        };
+        let nodes = base.unwrap_or_else(|| self.file_nodes[target].children.to_vec());
 
         Ok(filter_nodes(nodes, token, |index| {
             self.keep_node_for_nosubfolders(index, target)
@@ -977,6 +1010,17 @@ impl SearchCache {
     ) -> Option<Vec<SlabIndex>> {
         match base {
             Some(nodes) => Some(nodes),
+            None => self.search_empty(token),
+        }
+    }
+
+    fn nodes_from_base_ref(
+        &self,
+        base: Option<&Vec<SlabIndex>>,
+        token: CancellationToken,
+    ) -> Option<Vec<SlabIndex>> {
+        match base {
+            Some(nodes) => Some(nodes.clone()),
             None => self.search_empty(token),
         }
     }
@@ -1616,18 +1660,16 @@ fn intersect_in_place(
     rhs: &[SlabIndex],
     token: CancellationToken,
 ) -> Option<()> {
+    token.is_cancelled()?;
     if values.is_empty() {
         return Some(());
     }
-    let rhs_set: HashSet<SlabIndex> = rhs.iter().copied().collect();
-    let mut filtered = Vec::with_capacity(values.len().min(rhs.len()));
-    for (i, index) in values.iter().copied().enumerate() {
-        token.is_cancelled_sparse(i)?;
-        if rhs_set.contains(&index) {
-            filtered.push(index);
-        }
+    if rhs.is_empty() {
+        values.clear();
+        return Some(());
     }
-    *values = filtered;
+    let rhs_set: HashSet<SlabIndex> = rhs.iter().copied().collect();
+    values.retain(|index| rhs_set.contains(index));
     Some(())
 }
 
@@ -1636,35 +1678,11 @@ fn difference_in_place(
     rhs: &[SlabIndex],
     token: CancellationToken,
 ) -> Option<()> {
+    token.is_cancelled()?;
     if values.is_empty() || rhs.is_empty() {
         return Some(());
     }
     let rhs_set: HashSet<SlabIndex> = rhs.iter().copied().collect();
-    let mut filtered = Vec::with_capacity(values.len());
-    for (i, index) in values.iter().copied().enumerate() {
-        token.is_cancelled_sparse(i)?;
-        if !rhs_set.contains(&index) {
-            filtered.push(index);
-        }
-    }
-    *values = filtered;
-    Some(())
-}
-
-fn union_in_place(
-    values: &mut Vec<SlabIndex>,
-    rhs: &[SlabIndex],
-    token: CancellationToken,
-) -> Option<()> {
-    if rhs.is_empty() {
-        return Some(());
-    }
-    let mut seen: HashSet<SlabIndex> = values.iter().copied().collect();
-    for (i, index) in rhs.iter().copied().enumerate() {
-        token.is_cancelled_sparse(i)?;
-        if seen.insert(index) {
-            values.push(index);
-        }
-    }
+    values.retain(|index| !rhs_set.contains(index));
     Some(())
 }
