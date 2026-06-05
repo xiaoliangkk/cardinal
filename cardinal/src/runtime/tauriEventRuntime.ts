@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { Event as TauriEvent, UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -22,12 +23,17 @@ export type QuickLookKeydownPayload = {
   };
 };
 
+export type ExternalSearchPayload = {
+  query: string;
+};
+
 type Listener<T> = (payload: T) => void;
 export type WindowDragDropEvent = TauriEvent<DragDropEvent>;
 
 const statusBarUpdateListeners = new Set<Listener<StatusBarUpdatePayload>>();
 const lifecycleStateListeners = new Set<Listener<AppLifecycleStatus>>();
 const quickLaunchListeners = new Set<Listener<void>>();
+const externalSearchListeners = new Set<Listener<ExternalSearchPayload>>();
 const fsEventsBatchListeners = new Set<Listener<RecentEventPayload[]>>();
 const iconUpdateListeners = new Set<Listener<readonly IconUpdatePayload[]>>();
 const quickLookKeydownListeners = new Set<Listener<QuickLookKeydownPayload>>();
@@ -90,6 +96,14 @@ const normalizeIconUpdates = (payload: unknown): IconUpdatePayload[] => {
     .map((item) => ({ slabIndex: item.slabIndex as SlabIndex, icon: item.icon }));
 };
 
+const isExternalSearchPayload = (value: unknown): value is ExternalSearchPayload => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  return typeof (value as Record<string, unknown>).query === 'string';
+};
+
 export const initializeTauriEventRuntime = (): Promise<void> => {
   if (initPromise) {
     return initPromise;
@@ -115,6 +129,13 @@ export const initializeTauriEventRuntime = (): Promise<void> => {
         emit(quickLaunchListeners, undefined);
       }).catch((error) => {
         console.error('Failed to register quick_launch listener', error);
+      }),
+      listen<ExternalSearchPayload>('external_search', (event) => {
+        const payload = event.payload;
+        if (!isExternalSearchPayload(payload)) return;
+        emit(externalSearchListeners, payload);
+      }).catch((error) => {
+        console.error('Failed to register external_search listener', error);
       }),
       listen<RecentEventPayload[]>('fs_events_batch', (event) => {
         const payload = normalizeRecentEvents(event.payload);
@@ -167,6 +188,22 @@ export const subscribeLifecycleState = (listener: Listener<AppLifecycleStatus>):
 export const subscribeQuickLaunch = (listener: () => void): UnlistenFn => {
   void initializeTauriEventRuntime();
   return subscribe(quickLaunchListeners, listener);
+};
+
+export const subscribeExternalSearch = (
+  listener: Listener<ExternalSearchPayload>,
+): UnlistenFn => {
+  void initializeTauriEventRuntime();
+  return subscribe(externalSearchListeners, listener);
+};
+
+export const takePendingExternalSearch = async (): Promise<ExternalSearchPayload | null> => {
+  const payload = await invoke<ExternalSearchPayload | null>('take_pending_external_search');
+  return isExternalSearchPayload(payload) ? payload : null;
+};
+
+export const clearPendingExternalSearch = async (): Promise<void> => {
+  await invoke('clear_pending_external_search');
 };
 
 export const subscribeFSEventsBatch = (listener: Listener<RecentEventPayload[]>): UnlistenFn => {

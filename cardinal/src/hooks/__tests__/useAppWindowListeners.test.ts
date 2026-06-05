@@ -2,10 +2,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { RefObject } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearPendingExternalSearch,
   subscribeLifecycleState,
+  subscribeExternalSearch,
   subscribeQuickLaunch,
   subscribeStatusBarUpdate,
   subscribeWindowDragDrop,
+  takePendingExternalSearch,
 } from '../../runtime/tauriEventRuntime';
 import { useAppWindowListeners } from '../useAppWindowListeners';
 
@@ -13,12 +16,18 @@ vi.mock('../../runtime/tauriEventRuntime', () => ({
   subscribeStatusBarUpdate: vi.fn(),
   subscribeLifecycleState: vi.fn(),
   subscribeQuickLaunch: vi.fn(),
+  subscribeExternalSearch: vi.fn(),
+  takePendingExternalSearch: vi.fn(),
+  clearPendingExternalSearch: vi.fn(),
   subscribeWindowDragDrop: vi.fn(),
 }));
 
 const mockedSubscribeStatusBarUpdate = vi.mocked(subscribeStatusBarUpdate);
 const mockedSubscribeLifecycleState = vi.mocked(subscribeLifecycleState);
 const mockedSubscribeQuickLaunch = vi.mocked(subscribeQuickLaunch);
+const mockedSubscribeExternalSearch = vi.mocked(subscribeExternalSearch);
+const mockedTakePendingExternalSearch = vi.mocked(takePendingExternalSearch);
+const mockedClearPendingExternalSearch = vi.mocked(clearPendingExternalSearch);
 const mockedSubscribeWindowDragDrop = vi.mocked(subscribeWindowDragDrop);
 
 type HookProps = {
@@ -28,6 +37,7 @@ type HookProps = {
   handleStatusUpdate: (scannedFiles: number, processedEvents: number, rescanErrors: number) => void;
   setLifecycleState: (status: 'Initializing' | 'Updating' | 'Ready') => void;
   submitFilesQuery: (query: string, options?: { immediate?: boolean }) => void;
+  setActiveTab: (tab: 'files' | 'events') => void;
   setEventFilterQuery: (query: string) => void;
 };
 
@@ -35,12 +45,14 @@ describe('useAppWindowListeners', () => {
   const statusUnlisten = vi.fn();
   const lifecycleUnlisten = vi.fn();
   const quickLaunchUnlisten = vi.fn();
+  const externalSearchUnlisten = vi.fn();
   const dragDropUnlisten = vi.fn();
 
   const focusAndSelectSearchInput = vi.fn();
   const handleStatusUpdate = vi.fn();
   const setLifecycleState = vi.fn();
   const submitFilesQuery = vi.fn();
+  const setActiveTab = vi.fn();
   const setEventFilterQuery = vi.fn();
   const searchInputRef: { current: HTMLInputElement | null } = { current: null };
   let searchInputElement: HTMLInputElement;
@@ -51,6 +63,7 @@ describe('useAppWindowListeners', () => {
     | null;
   let lifecycleCallback: ((status: 'Initializing' | 'Updating' | 'Ready') => void) | null;
   let quickLaunchCallback: (() => void) | null;
+  let externalSearchCallback: ((payload: { query: string }) => void) | null;
   let dragDropCallback: ((event: any) => void) | null;
 
   const renderWindowListeners = (overrides: Partial<HookProps> = {}) =>
@@ -62,6 +75,7 @@ describe('useAppWindowListeners', () => {
         handleStatusUpdate,
         setLifecycleState,
         submitFilesQuery,
+        setActiveTab,
         setEventFilterQuery,
         ...overrides,
       },
@@ -72,8 +86,11 @@ describe('useAppWindowListeners', () => {
     statusCallback = null;
     lifecycleCallback = null;
     quickLaunchCallback = null;
+    externalSearchCallback = null;
     dragDropCallback = null;
     document.documentElement.removeAttribute('data-window-focused');
+    mockedTakePendingExternalSearch.mockResolvedValue(null);
+    mockedClearPendingExternalSearch.mockResolvedValue();
     searchInputElement = document.createElement('input');
     searchInputRef.current = searchInputElement;
     elementFromPointMock = vi.fn(() => searchInputElement);
@@ -94,6 +111,10 @@ describe('useAppWindowListeners', () => {
       quickLaunchCallback = listener;
       return quickLaunchUnlisten;
     });
+    mockedSubscribeExternalSearch.mockImplementation((listener) => {
+      externalSearchCallback = listener;
+      return externalSearchUnlisten;
+    });
     mockedSubscribeWindowDragDrop.mockImplementation((listener) => {
       dragDropCallback = listener;
       return dragDropUnlisten;
@@ -107,6 +128,7 @@ describe('useAppWindowListeners', () => {
       expect(mockedSubscribeStatusBarUpdate).toHaveBeenCalledTimes(1);
       expect(mockedSubscribeLifecycleState).toHaveBeenCalledTimes(1);
       expect(mockedSubscribeQuickLaunch).toHaveBeenCalledTimes(1);
+      expect(mockedSubscribeExternalSearch).toHaveBeenCalledTimes(1);
       expect(mockedSubscribeWindowDragDrop).toHaveBeenCalledTimes(1);
     });
 
@@ -124,6 +146,23 @@ describe('useAppWindowListeners', () => {
       quickLaunchCallback?.();
     });
     expect(focusAndSelectSearchInput).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes external search payloads directly to the files query', async () => {
+    renderWindowListeners({ activeTab: 'events' });
+
+    await waitFor(() => {
+      expect(externalSearchCallback).not.toBeNull();
+    });
+
+    act(() => {
+      externalSearchCallback?.({ query: ' report ' });
+    });
+
+    expect(setActiveTab).toHaveBeenCalledWith('files');
+    expect(submitFilesQuery).toHaveBeenCalledWith('report', { immediate: true });
+    expect(focusAndSelectSearchInput).toHaveBeenCalledTimes(1);
+    expect(mockedClearPendingExternalSearch).toHaveBeenCalledTimes(1);
   });
 
   it('handles drag-drop search routing for files and events tabs', async () => {
@@ -150,6 +189,7 @@ describe('useAppWindowListeners', () => {
       handleStatusUpdate,
       setLifecycleState,
       submitFilesQuery,
+      setActiveTab,
       setEventFilterQuery,
     });
 
@@ -202,6 +242,7 @@ describe('useAppWindowListeners', () => {
     expect(statusUnlisten).toHaveBeenCalledTimes(1);
     expect(lifecycleUnlisten).toHaveBeenCalledTimes(1);
     expect(quickLaunchUnlisten).toHaveBeenCalledTimes(1);
+    expect(externalSearchUnlisten).toHaveBeenCalledTimes(1);
     expect(dragDropUnlisten).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,6 @@
 mod background;
 mod commands;
+mod external_search;
 mod lifecycle;
 mod quicklook;
 mod search_activity;
@@ -20,6 +21,9 @@ use commands::{
     toggle_quicklook, trigger_rescan, update_icon_viewport, update_quicklook,
 };
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, bounded, unbounded};
+use external_search::{
+    clear_pending_external_search, handle_opened_urls, take_pending_external_search,
+};
 use lifecycle::{
     APP_QUIT, AppLifecycleState, EXIT_REQUESTED, emit_app_state, load_app_state, update_app_state,
 };
@@ -140,6 +144,8 @@ pub fn run() -> Result<()> {
             toggle_main_window,
             set_tray_activation_policy,
             copy_files_to_clipboard,
+            take_pending_external_search,
+            clear_pending_external_search,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -213,6 +219,9 @@ pub fn run() -> Result<()> {
                 } else {
                     warn!("Reopen requested but main window is unavailable");
                 }
+            }
+            RunEvent::Opened { urls } => {
+                handle_opened_urls(app_handle, urls);
             }
             _ => {}
         });

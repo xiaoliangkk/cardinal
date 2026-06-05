@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import type { RefObject } from 'react';
 import type { StatusTabKey } from '../components/StatusBar';
 import {
+  clearPendingExternalSearch,
   subscribeLifecycleState,
+  subscribeExternalSearch,
   subscribeQuickLaunch,
   subscribeStatusBarUpdate,
   subscribeWindowDragDrop,
+  takePendingExternalSearch,
+  type ExternalSearchPayload,
   type WindowDragDropEvent,
 } from '../runtime/tauriEventRuntime';
 import type { AppLifecycleStatus, StatusBarUpdatePayload } from '../types/ipc';
@@ -22,6 +26,7 @@ type UseAppWindowListenersOptions = {
   handleStatusUpdate: (scannedFiles: number, processedEvents: number, rescanErrors: number) => void;
   setLifecycleState: (status: AppLifecycleStatus) => void;
   submitFilesQuery: (query: string, options?: QueueSearchOptions) => void;
+  setActiveTab: (tab: StatusTabKey) => void;
   setEventFilterQuery: (value: string) => void;
 };
 
@@ -40,6 +45,7 @@ export function useAppWindowListeners({
   handleStatusUpdate,
   setLifecycleState,
   submitFilesQuery,
+  setActiveTab,
   setEventFilterQuery,
 }: UseAppWindowListenersOptions): UseAppWindowListenersResult {
   const [isWindowFocused, setIsWindowFocused] = useState<boolean>(() => {
@@ -69,6 +75,36 @@ export function useAppWindowListeners({
     });
     return unlistenQuickLaunch;
   }, [focusAndSelectSearchInput]);
+
+  const handleExternalSearch = useStableEvent((payload: ExternalSearchPayload) => {
+    const query = payload.query.trim();
+    if (!query) {
+      return;
+    }
+
+    setActiveTab('files');
+    submitFilesQuery(query, { immediate: true });
+    focusAndSelectSearchInput();
+  });
+
+  useEffect(() => {
+    const unlistenExternalSearch = subscribeExternalSearch((payload) => {
+      handleExternalSearch(payload);
+      void clearPendingExternalSearch();
+    });
+
+    void takePendingExternalSearch()
+      .then((payload) => {
+        if (payload) {
+          handleExternalSearch(payload);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load pending external search', error);
+      });
+
+    return unlistenExternalSearch;
+  }, [handleExternalSearch]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {

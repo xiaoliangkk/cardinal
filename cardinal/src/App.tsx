@@ -108,6 +108,7 @@ function App() {
 
   const {
     activeTab,
+    setActiveTab,
     isSearchFocused,
     handleSearchFocus,
     handleSearchBlur,
@@ -212,6 +213,7 @@ function App() {
     handleStatusUpdate,
     setLifecycleState,
     submitFilesQuery,
+    setActiveTab,
     setEventFilterQuery,
   });
 
